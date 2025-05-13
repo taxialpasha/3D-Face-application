@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق النمذجة ثلاثية الأبعاد للوجه</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Tajawal', sans-serif;
+        }
+        
+        body {
+            direction: rtl;
+            background-color: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            max-width: 100%;
+            height: 100%;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .camera-container {
+            width: 100%;
+            max-width: 500px;
+            height: 60vh;
+            position: relative;
+            overflow: hidden;
+            background-color: #000;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        #camera {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #photo {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #canvas {
+            display: none;
+        }
+        
+        #model-container {
+            width: 100%;
+            height: 60vh;
+            display: none;
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: #000;
+        }
+        
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        button {
+            padding: 12px 20px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            width: 45%;
+            max-width: 200px;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .state {
+            display: none;
+        }
+        
+        .state.active {
+            display: block;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            display: none;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .instructions {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">تطبيق النمذجة ثلاثية الأبعاد للوجه</h1>
+        
+        <div id="camera-state" class="state active">
+            <p class="instructions">قم بتوجيه الكاميرا نحو الوجه والضغط على زر التقاط الصورة</p>
+            <div class="camera-container">
+                <video id="camera" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+                <img id="photo" alt="الصورة الملتقطة" />
+            </div>
+            <div class="buttons">
+                <button id="capture-btn">التقاط صورة</button>
+                <button id="switch-camera-btn">تبديل الكاميرا</button>
+            </div>
+        </div>
+        
+        <div id="preview-state" class="state">
+            <p class="instructions">هل تريد استخدام هذه الصورة لإنشاء النموذج ثلاثي الأبعاد؟</p>
+            <div class="camera-container">
+                <img id="preview" alt="معاينة الصورة" />
+            </div>
+            <div class="buttons">
+                <button id="create-model-btn">إنشاء نموذج ثلاثي الأبعاد</button>
+                <button id="retake-btn">إعادة التقاط</button>
+            </div>
+        </div>
+        
+        <div id="model-state" class="state">
+            <p class="instructions">النموذج ثلاثي الأبعاد (اسحب للتدوير)</p>
+            <div id="model-container"></div>
+            <div class="buttons">
+                <button id="new-photo-btn">صورة جديدة</button>
+                <button id="download-btn">تحميل النموذج</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Three.js Library for 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    
+    <script>
+        // Global variables
+        let currentStream = null;
+        let facingMode = "user"; // Start with front camera
+        let scene, camera3D, renderer, model, texture;
+        
+        // DOM Elements
+        const cameraElement = document.getElementById('camera');
+        const photoElement = document.getElementById('photo');
+        const canvasElement = document.getElementById('canvas');
+        const captureBtn = document.getElementById('capture-btn');
+        const switchCameraBtn = document.getElementById('switch-camera-btn');
+        const previewElement = document.getElementById('preview');
+        const createModelBtn = document.getElementById('create-model-btn');
+        const retakeBtn = document.getElementById('retake-btn');
+        const newPhotoBtn = document.getElementById('new-photo-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const modelContainer = document.getElementById('model-container');
+        const loading = document.getElementById('loading');
+        
+        // States
+        const cameraState = document.getElementById('camera-state');
+        const previewState = document.getElementById('preview-state');
+        const modelState = document.getElementById('model-state');
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', initApp);
+        
+        function initApp() {
+            startCamera();
+            
+            // Event listeners
+            captureBtn.addEventListener('click', capturePhoto);
+            switchCameraBtn.addEventListener('click', switchCamera);
+            createModelBtn.addEventListener('click', createModel);
+            retakeBtn.addEventListener('click', retakePhoto);
+            newPhotoBtn.addEventListener('click', newPhoto);
+            downloadBtn.addEventListener('click', downloadModel);
+        }
+        
+        function switchState(newState) {
+            // Hide all states
+            cameraState.classList.remove('active');
+            previewState.classList.remove('active');
+            modelState.classList.remove('active');
+            
+            // Show the new state
+            newState.classList.add('active');
+        }
+        
+        function startCamera() {
+            if (currentStream) {
+                stopCamera();
+            }
+            
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: facingMode
+                }
+            };
+            
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    currentStream = stream;
+                    cameraElement.srcObject = stream;
+                })
+                .catch(err => {
+                    console.error('Error accessing camera:', err);
+                    alert('لا يمكن الوصول إلى الكاميرا. الرجاء التحقق من الأذونات.');
+                });
+        }
+        
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                cameraElement.srcObject = null;
+            }
+        }
+        
+        function switchCamera() {
+            facingMode = facingMode === "user" ? "environment" : "user";
+            startCamera();
+        }
+        
+        function capturePhoto() {
+            const context = canvasElement.getContext('2d');
+            
+            // Set canvas dimensions to match video
+            canvasElement.width = cameraElement.videoWidth;
+            canvasElement.height = cameraElement.videoHeight;
+            
+            // Draw the video frame to the canvas
+            context.drawImage(cameraElement, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Convert canvas to image
+            const imageDataUrl = canvasElement.toDataURL('image/png');
+            
+            // Show the image in preview
+            previewElement.src = imageDataUrl;
+            
+            // Switch to preview state
+            switchState(previewState);
+        }
+        
+        function retakePhoto() {
+            // Switch back to camera state
+            switchState(cameraState);
+        }
+        
+        function newPhoto() {
+            // Dispose 3D resources
+            disposeThreeJS();
+            
+            // Switch back to camera state
+            switchState(cameraState);
+            
+            // Make sure camera is started
+            startCamera();
+        }
+        
+        function disposeThreeJS() {
+            if (model) {
+                scene.remove(model);
+                model.geometry.dispose();
+                model.material.dispose();
+            }
+            
+            if (texture) {
+                texture.dispose();
+            }
+            
+            if (renderer) {
+                renderer.dispose();
+            }
+        }
+        
+        function createModel() {
+            // Show loading
+            loading.style.display = 'flex';
+            
+            // Give time for the loading indicator to appear
+            setTimeout(() => {
+                initThreeJS();
+                createFaceModel();
+                
+                // Switch to model state
+                switchState(modelState);
+                
+                // Hide loading
+                loading.style.display = 'none';
+            }, 100);
+        }
+        
+        function initThreeJS() {
+            // Create a scene
+            scene = new THREE.Scene();
+            
+            // Create a camera
+            camera3D = new THREE.PerspectiveCamera(75, modelContainer.clientWidth / modelContainer.clientHeight, 0.1, 1000);
+            camera3D.position.z = 5;
+            
+            // Create a renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(modelContainer.clientWidth, modelContainer.clientHeight);
+            
+            // Clear the container and add the renderer's canvas
+            modelContainer.innerHTML = '';
+            modelContainer.appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(0, 1, 1);
+            scene.add(directionalLight);
+            
+            // Add event listener for rotation
+            renderer.domElement.addEventListener('mousemove', onModelRotate);
+            renderer.domElement.addEventListener('touchmove', onModelRotateMobile);
+            
+            // Setup animation loop
+            animate();
+        }
+        
+        function createFaceModel() {
+            // Load the captured image as a texture
+            texture = new THREE.TextureLoader().load(previewElement.src);
+            
+            // Create a simple 3D model (sphere for the head)
+            const geometry = new THREE.SphereGeometry(2, 32, 32);
+            
+            // Create material with the photo as texture
+            const material = new THREE.MeshPhongMaterial({
+                map: texture,
+                bumpScale: 0.05,
+                specular: new THREE.Color(0x111111),
+                shininess: 10
+            });
+            
+            // Create the model
+            model = new THREE.Mesh(geometry, material);
+            
+            // Adjust the texture mapping for a face
+            adjustFaceTextureMapping(geometry);
+            
+            // Add the model to the scene
+            scene.add(model);
+        }
+        
+        function adjustFaceTextureMapping(geometry) {
+            // This is a simplified mapping - real face mapping would be more complex
+            const uvs = geometry.attributes.uv;
+            
+            for (let i = 0; i < uvs.count; i++) {
+                let u = uvs.getX(i);
+                let v = uvs.getY(i);
+                
+                // Invert the U coordinate for a more natural mapping
+                u = 1 - u;
+                
+                // Adjust the V coordinate to focus on the face region
+                v = v * 0.8 + 0.1;
+                
+                uvs.setXY(i, u, v);
+            }
+            
+            uvs.needsUpdate = true;
+        }
+        
+        let rotationX = 0;
+        let rotationY = 0;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let isRotating = false;
+        
+        function onModelRotate(event) {
+            if (event.buttons === 1) {
+                const deltaX = event.clientX - lastMouseX;
+                const deltaY = event.clientY - lastMouseY;
+                
+                rotationY += deltaX * 0.01;
+                rotationX += deltaY * 0.01;
+                
+                model.rotation.y = rotationY;
+                model.rotation.x = rotationX;
+                
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            } else {
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            }
+        }
+        
+        function onModelRotateMobile(event) {
+            if (event.touches.length === 1) {
+                event.preventDefault();
+                
+                const touch = event.touches[0];
+                
+                if (!isRotating) {
+                    isRotating = true;
+                    lastMouseX = touch.clientX;
+                    lastMouseY = touch.clientY;
+                } else {
+                    const deltaX = touch.clientX - lastMouseX;
+                    const deltaY = touch.clientY - lastMouseY;
+                    
+                    rotationY += deltaX * 0.01;
+                    rotationX += deltaY * 0.01;
+                    
+                    model.rotation.y = rotationY;
+                    model.rotation.x = rotationX;
+                    
+                    lastMouseX = touch.clientX;
+                    lastMouseY = touch.clientY;
+                }
+            }
+        }
+        
+        renderer?.domElement.addEventListener('touchend', () => {
+            isRotating = false;
+        });
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (renderer && scene && camera3D) {
+                renderer.render(scene, camera3D);
+            }
+        }
+        
+        function downloadModel() {
+            alert('تم حفظ النموذج ثلاثي الأبعاد (في تطبيق كامل، سيتم هنا تنزيل ملف النموذج)');
+        }
+        
+        // Handle page visibility changes to pause camera when not visible
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page is hidden, stop the camera to save resources
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.enabled = false);
+                }
+            } else {
+                // Page is visible again, resume the camera
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.enabled = true);
+                }
+            }
+        });
+        
+        // Handle resize events
+        window.addEventListener('resize', () => {
+            if (renderer && camera3D) {
+                // Update camera aspect ratio
+                camera3D.aspect = modelContainer.clientWidth / modelContainer.clientHeight;
+                camera3D.updateProjectionMatrix();
+                
+                // Update renderer size
+                renderer.setSize(modelContainer.clientWidth, modelContainer.clientHeight);
+            }
+        });
+    </script>
+</body>
+</html>
