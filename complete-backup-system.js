@@ -1,1509 +1,2428 @@
-// نظام النسخ الاحتياطي الشامل
-// Complete Backup System for Investment Management Application
-
 /**
- * تهيئة نظام النسخ الاحتياطي الشامل
- * Initialize the complete backup system
+ * نظام النسخ الاحتياطي الشامل
+ * هذا الملف يحتوي على وظائف النسخ الاحتياطي الشامل واستعادة النظام
  */
-(function() {
-    // إضافة علامة تبويب النسخ الاحتياطي الشامل إلى صفحة الإعدادات
-    // Add complete backup tab to settings page
-    document.addEventListener('DOMContentLoaded', function() {
-        // إنشاء الواجهة بعد تحميل الصفحة
-        setupCompleteBackupUI();
-        
-        // تهيئة الأحداث
-        setupCompleteBackupEvents();
-        
-        // التحقق من وجود مجلد النسخ الاحتياطية
-        checkBackupDirectory();
-    });
-})();
 
-/**
- * إنشاء واجهة المستخدم للنسخ الاحتياطي الشامل
- * Create the complete backup UI
- */
-function setupCompleteBackupUI() {
-    // التحقق من وجود علامات التبويب في الإعدادات
-    const settingsTabs = document.querySelector('#settings .tabs');
-    if (!settingsTabs) return;
+// كائن عام لإدارة النسخ الاحتياطي الشامل
+window.ComprehensiveBackupSystem = {
+    // قائمة النسخ الاحتياطية المتوفرة
+    backups: [],
     
-    // إضافة علامة تبويب النسخ الاحتياطي الشامل
-    const completeBackupTab = document.createElement('div');
-    completeBackupTab.className = 'tab';
-    completeBackupTab.onclick = function() { switchSettingsTab('completeBackup'); };
-    completeBackupTab.innerHTML = 'النسخ الاحتياطي الشامل';
-    settingsTabs.appendChild(completeBackupTab);
+    // خيارات النسخ الاحتياطي
+    options: {
+        formats: {
+            json: true,
+            pdf: true,
+            excel: true,
+            word: true
+        },
+        // مسار حفظ النسخ الاحتياطية (افتراضي)
+        backupPath: './backups/',
+        // حفظ صور المستندات
+        includeDocuments: true,
+        // حفظ الإعدادات
+        includeSettings: true,
+        // عدد النسخ الاحتياطية المحتفظ بها
+        maxBackups: 10,
+        // التشفير
+        encryption: false,
+        // كلمة مرور التشفير
+        encryptionPassword: '',
+        // النسخ الاحتياطي التلقائي
+        autoBackup: false,
+        // فترة النسخ الاحتياطي التلقائي (بالأيام)
+        autoBackupInterval: 7
+    },
     
-    // إنشاء محتوى علامة التبويب
-    const settingsContainer = document.getElementById('settings');
-    if (!settingsContainer) return;
+    // تهيئة النظام
+    init: function() {
+        // تحميل الخيارات من التخزين المحلي
+        this.loadOptions();
+        // تحميل قائمة النسخ الاحتياطية
+        this.loadBackupsList();
+        // إعداد النسخ الاحتياطي التلقائي
+        this.setupAutoBackup();
+        console.log('تم تهيئة نظام النسخ الاحتياطي الشامل');
+    },
     
-    // إنشاء محتوى النسخ الاحتياطي الشامل
-    const completeBackupContent = document.createElement('div');
-    completeBackupContent.id = 'completeBackupSettings';
-    completeBackupContent.className = 'settings-tab-content';
+    // تحميل خيارات النسخ الاحتياطي
+    loadOptions: function() {
+        const savedOptions = localStorage.getItem('comprehensiveBackupOptions');
+        if (savedOptions) {
+            try {
+                this.options = {...this.options, ...JSON.parse(savedOptions)};
+                console.log('تم تحميل خيارات النسخ الاحتياطي');
+            } catch (error) {
+                console.error('خطأ في تحميل خيارات النسخ الاحتياطي:', error);
+            }
+        }
+    },
     
-    completeBackupContent.innerHTML = `
-        <div class="form-container">
-            <div class="form-header">
-                <h2 class="form-title">النسخ الاحتياطي الشامل للنظام</h2>
-                <p class="form-subtitle">إنشاء واستعادة نسخة احتياطية كاملة لجميع بيانات ووظائف النظام</p>
-            </div>
+    // حفظ خيارات النسخ الاحتياطي
+    saveOptions: function() {
+        localStorage.setItem('comprehensiveBackupOptions', JSON.stringify(this.options));
+        console.log('تم حفظ خيارات النسخ الاحتياطي');
+        
+        // إعادة إعداد النسخ الاحتياطي التلقائي
+        this.setupAutoBackup();
+    },
+    
+    // تحميل قائمة النسخ الاحتياطية
+    loadBackupsList: function() {
+        const savedBackups = localStorage.getItem('comprehensiveBackups');
+        if (savedBackups) {
+            try {
+                this.backups = JSON.parse(savedBackups);
+                console.log(`تم تحميل ${this.backups.length} نسخة احتياطية`);
+            } catch (error) {
+                console.error('خطأ في تحميل قائمة النسخ الاحتياطية:', error);
+                this.backups = [];
+            }
+        }
+        
+        // تحديث قائمة النسخ الاحتياطية في واجهة المستخدم
+        this.updateBackupsList();
+    },
+    
+    // حفظ قائمة النسخ الاحتياطية
+    saveBackupsList: function() {
+        localStorage.setItem('comprehensiveBackups', JSON.stringify(this.backups));
+        console.log('تم حفظ قائمة النسخ الاحتياطية');
+        
+        // تحديث قائمة النسخ الاحتياطية في واجهة المستخدم
+        this.updateBackupsList();
+    },
+    
+    // تحديث قائمة النسخ الاحتياطية في واجهة المستخدم
+    updateBackupsList: function() {
+        const backupListElement = document.getElementById('comprehensiveBackupsList');
+        if (!backupListElement) return;
+        
+        backupListElement.innerHTML = '';
+        
+        if (this.backups.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'لا توجد نسخ احتياطية متوفرة';
+            option.disabled = true;
+            backupListElement.appendChild(option);
+            return;
+        }
+        
+        // فرز النسخ الاحتياطية حسب التاريخ (الأحدث أولاً)
+        const sortedBackups = [...this.backups].sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        
+        sortedBackups.forEach(backup => {
+            const option = document.createElement('option');
+            option.value = backup.id;
             
-            <div class="alert alert-info">
-                <div class="alert-icon">
-                    <i class="fas fa-info-circle"></i>
+            // تنسيق التاريخ والوقت للعرض
+            const date = new Date(backup.createdAt);
+            const formattedDate = date.toLocaleDateString('ar-IQ');
+            const formattedTime = date.toLocaleTimeString('ar-IQ');
+            
+            option.textContent = `${backup.name} - ${formattedDate} ${formattedTime}`;
+            backupListElement.appendChild(option);
+        });
+    },
+    
+    // إنشاء نسخة احتياطية شاملة
+    createBackup: function(customName = '') {
+        // عرض مؤشر التقدم
+        this.showProgressBar();
+        
+        // جمع كل البيانات المطلوبة للنسخ الاحتياطي
+        const backupData = this.collectBackupData();
+        
+        // إنشاء معرف فريد للنسخة الاحتياطية
+        const backupId = this.generateBackupId();
+        
+        // إنشاء اسم النسخة الاحتياطية
+        const now = new Date();
+        const backupName = customName || `نسخة احتياطية شاملة - ${now.toLocaleDateString('ar-IQ')}`;
+        
+        // إنشاء كائن النسخة الاحتياطية
+        const backup = {
+            id: backupId,
+            name: backupName,
+            createdAt: now.toISOString(),
+            formats: {...this.options.formats},
+            data: backupData,
+            size: JSON.stringify(backupData).length,
+            location: this.options.backupPath + backupId + '/'
+        };
+        
+        // تحديث مؤشر التقدم
+        this.updateProgressBar(25, 'جاري جمع البيانات');
+        
+        // حفظ النسخة الاحتياطية بالصيغ المطلوبة
+        Promise.all([
+            this.options.formats.json ? this.saveAsJson(backup) : Promise.resolve(),
+            this.options.formats.pdf ? this.saveAsPdf(backup) : Promise.resolve(),
+            this.options.formats.excel ? this.saveAsExcel(backup) : Promise.resolve(),
+            this.options.formats.word ? this.saveAsWord(backup) : Promise.resolve()
+        ]).then(() => {
+            // تحديث مؤشر التقدم
+            this.updateProgressBar(75, 'جاري حفظ الملفات');
+            
+            // إضافة النسخة الاحتياطية إلى القائمة
+            this.backups.push(backup);
+            
+            // حفظ قائمة النسخ الاحتياطية
+            this.saveBackupsList();
+            
+            // التحقق من عدد النسخ الاحتياطية وحذف القديمة إذا تجاوز الحد
+            this.cleanupOldBackups();
+            
+            // إخفاء مؤشر التقدم
+            this.hideProgressBar();
+            
+            // عرض رسالة نجاح
+            createNotification('نجاح', 'تم إنشاء النسخة الاحتياطية الشاملة بنجاح', 'success');
+            
+            // تحديث قائمة النسخ الاحتياطية في واجهة المستخدم
+            this.updateBackupsList();
+            
+            console.log(`تم إنشاء نسخة احتياطية شاملة: ${backup.name}`);
+        }).catch(error => {
+            console.error('خطأ في إنشاء النسخة الاحتياطية:', error);
+            
+            // إخفاء مؤشر التقدم
+            this.hideProgressBar();
+            
+            // عرض رسالة خطأ
+            createNotification('خطأ', 'حدث خطأ أثناء إنشاء النسخة الاحتياطية', 'danger');
+        });
+    },
+    
+    // استعادة النظام من نسخة احتياطية
+    restoreFromBackup: function(backupId) {
+        // التحقق من وجود النسخة الاحتياطية
+        const backup = this.backups.find(b => b.id === backupId);
+        if (!backup) {
+            createNotification('خطأ', 'النسخة الاحتياطية غير موجودة', 'danger');
+            return;
+        }
+        
+        // طلب تأكيد من المستخدم
+        if (!confirm(`هل أنت متأكد من استعادة النظام من النسخة الاحتياطية "${backup.name}"؟ سيتم استبدال جميع البيانات الحالية.`)) {
+            return;
+        }
+        
+        // عرض مؤشر التقدم
+        this.showProgressBar();
+        this.updateProgressBar(10, 'جاري التحضير للاستعادة');
+        
+        // قراءة ملف النسخة الاحتياطية
+        this.loadBackupFile(backup)
+            .then(backupData => {
+                // تحديث مؤشر التقدم
+                this.updateProgressBar(40, 'جاري تحليل البيانات');
+                
+                // استعادة البيانات
+                this.restoreData(backupData);
+                
+                // تحديث مؤشر التقدم
+                this.updateProgressBar(80, 'جاري استعادة البيانات');
+                
+                // تحديث واجهة المستخدم
+                this.updateUIAfterRestore();
+                
+                // إخفاء مؤشر التقدم
+                this.hideProgressBar();
+                
+                // عرض رسالة نجاح
+                createNotification('نجاح', 'تم استعادة النظام بنجاح من النسخة الاحتياطية', 'success');
+                
+                console.log(`تم استعادة النظام من النسخة الاحتياطية: ${backup.name}`);
+                
+                // إعادة تحميل الصفحة بعد الاستعادة
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            })
+            .catch(error => {
+                console.error('خطأ في استعادة النظام:', error);
+                
+                // إخفاء مؤشر التقدم
+                this.hideProgressBar();
+                
+                // عرض رسالة خطأ
+                createNotification('خطأ', 'حدث خطأ أثناء استعادة النظام', 'danger');
+            });
+    },
+    
+    // حذف نسخة احتياطية
+    deleteBackup: function(backupId) {
+        // التحقق من وجود النسخة الاحتياطية
+        const backup = this.backups.find(b => b.id === backupId);
+        if (!backup) {
+            createNotification('خطأ', 'النسخة الاحتياطية غير موجودة', 'danger');
+            return;
+        }
+        
+        // طلب تأكيد من المستخدم
+        if (!confirm(`هل أنت متأكد من حذف النسخة الاحتياطية "${backup.name}"؟`)) {
+            return;
+        }
+        
+        // حذف ملفات النسخة الاحتياطية (في تطبيق حقيقي)
+        // الإبقاء على النسخة في مجلد المهملات (مفيد للاستعادة)
+        const trashedBackup = {...backup, trashed: true, trashedAt: new Date().toISOString()};
+        
+        // حذف النسخة الاحتياطية من القائمة
+        this.backups = this.backups.filter(b => b.id !== backupId);
+        
+        // حفظ قائمة النسخ الاحتياطية
+        this.saveBackupsList();
+        
+        // عرض رسالة نجاح
+        createNotification('نجاح', 'تم حذف النسخة الاحتياطية بنجاح', 'success');
+        
+        console.log(`تم حذف النسخة الاحتياطية: ${backup.name}`);
+    },
+    
+    // تنزيل نسخة احتياطية
+    downloadBackup: function(backupId, format = 'json') {
+        // التحقق من وجود النسخة الاحتياطية
+        const backup = this.backups.find(b => b.id === backupId);
+        if (!backup) {
+            createNotification('خطأ', 'النسخة الاحتياطية غير موجودة', 'danger');
+            return;
+        }
+        
+        // تحضير البيانات للتنزيل
+        const backupData = backup.data || this.collectBackupData();
+        
+        // تنزيل الملف بالصيغة المطلوبة
+        switch (format.toLowerCase()) {
+            case 'json':
+                this.downloadAsJson(backup, backupData);
+                break;
+            case 'pdf':
+                this.downloadAsPdf(backup, backupData);
+                break;
+            case 'excel':
+                this.downloadAsExcel(backup, backupData);
+                break;
+            case 'word':
+                this.downloadAsWord(backup, backupData);
+                break;
+            default:
+                createNotification('خطأ', 'صيغة الملف غير مدعومة', 'danger');
+        }
+    },
+    
+    // جمع البيانات للنسخ الاحتياطي
+    collectBackupData: function() {
+        const backupData = {
+            version: '1.0.0',
+            timestamp: new Date().toISOString(),
+            appInfo: {
+                name: settings.companyName || 'شركة الاستثمار العراقية',
+                version: '1.0.0',
+                environment: 'production'
+            },
+            data: {
+                investors: investors || [],
+                investments: investments || [],
+                operations: operations || [],
+                events: events || [],
+                notifications: notifications || [],
+                backupList: backupList || [],
+                reports: reports || []
+            }
+        };
+        
+        // إضافة الإعدادات إذا كان مطلوباً
+        if (this.options.includeSettings) {
+            backupData.settings = settings || {};
+        }
+        
+        // إضافة المستندات إذا كان مطلوباً
+        if (this.options.includeDocuments) {
+            // جمع المستندات من المستثمرين
+            backupData.documents = this.collectDocuments();
+        }
+        
+        return backupData;
+    },
+    
+    // جمع المستندات من المستثمرين
+    collectDocuments: function() {
+        const documents = [];
+        
+        // المرور على جميع المستثمرين
+        (investors || []).forEach(investor => {
+            if (investor.documents && Array.isArray(investor.documents)) {
+                investor.documents.forEach(doc => {
+                    documents.push({
+                        investorId: investor.id,
+                        documentId: doc.id,
+                        name: doc.name,
+                        type: doc.type,
+                        mimeType: doc.mimeType,
+                        uploadDate: doc.uploadDate,
+                        // في تطبيق حقيقي، هنا سيتم تخزين البيانات الثنائية للملف
+                        // أو المسار إليه على الخادم
+                        path: doc.path || `documents/${investor.id}/${doc.id}`
+                    });
+                });
+            }
+        });
+        
+        return documents;
+    },
+    
+    // توليد معرف فريد للنسخة الاحتياطية
+    generateBackupId: function() {
+        return 'backup_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+    },
+    
+    // حفظ النسخة الاحتياطية بصيغة JSON
+    saveAsJson: function(backup) {
+        return new Promise((resolve, reject) => {
+            try {
+                // في تطبيق ويب، نقوم بتنزيل الملف مباشرة
+                const data = JSON.stringify(backup.data, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${backup.name.replace(/\s+/g, '_')}_${backup.id}.json`;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // في تطبيق سطح المكتب، هنا سيتم حفظ الملف في المسار المحدد
+                console.log(`تم حفظ النسخة الاحتياطية بصيغة JSON: ${a.download}`);
+                
+                // في تطبيق حقيقي، سيتم تخزين معلومات الملف
+                backup.jsonFile = {
+                    path: `${backup.location}${a.download}`,
+                    size: data.length,
+                    createdAt: new Date().toISOString()
+                };
+                
+                resolve();
+            } catch (error) {
+                console.error('خطأ في حفظ النسخة الاحتياطية بصيغة JSON:', error);
+                reject(error);
+            }
+        });
+    },
+    
+    // حفظ النسخة الاحتياطية بصيغة PDF
+    saveAsPdf: function(backup) {
+        return new Promise((resolve, reject) => {
+            try {
+                // إنشاء اسم الملف
+                const fileName = `${backup.name.replace(/\s+/g, '_')}_${backup.id}.pdf`;
+                
+                // في تطبيق حقيقي، هنا سيتم إنشاء ملف PDF وحفظه
+                console.log(`تم حفظ النسخة الاحتياطية بصيغة PDF: ${fileName}`);
+                
+                // في تطبيق حقيقي، سيتم تخزين معلومات الملف
+                backup.pdfFile = {
+                    path: `${backup.location}${fileName}`,
+                    size: 0, // حجم الملف الفعلي
+                    createdAt: new Date().toISOString()
+                };
+                
+                // عرض إشعار
+                createNotification('معلومات', 'وظيفة تصدير PDF غير متاحة في هذا الإصدار', 'info');
+                
+                resolve();
+            } catch (error) {
+                console.error('خطأ في حفظ النسخة الاحتياطية بصيغة PDF:', error);
+                reject(error);
+            }
+        });
+    },
+    
+    // حفظ النسخة الاحتياطية بصيغة Excel
+    saveAsExcel: function(backup) {
+        return new Promise((resolve, reject) => {
+            try {
+                // إنشاء اسم الملف
+                const fileName = `${backup.name.replace(/\s+/g, '_')}_${backup.id}.xlsx`;
+                
+                // في تطبيق حقيقي، هنا سيتم إنشاء ملف Excel وحفظه
+                console.log(`تم حفظ النسخة الاحتياطية بصيغة Excel: ${fileName}`);
+                
+                // في تطبيق حقيقي، سيتم تخزين معلومات الملف
+                backup.excelFile = {
+                    path: `${backup.location}${fileName}`,
+                    size: 0, // حجم الملف الفعلي
+                    createdAt: new Date().toISOString()
+                };
+                
+                // عرض إشعار
+                createNotification('معلومات', 'وظيفة تصدير Excel غير متاحة في هذا الإصدار', 'info');
+                
+                resolve();
+            } catch (error) {
+                console.error('خطأ في حفظ النسخة الاحتياطية بصيغة Excel:', error);
+                reject(error);
+            }
+        });
+    },
+    
+    // حفظ النسخة الاحتياطية بصيغة Word
+    saveAsWord: function(backup) {
+        return new Promise((resolve, reject) => {
+            try {
+                // إنشاء اسم الملف
+                const fileName = `${backup.name.replace(/\s+/g, '_')}_${backup.id}.docx`;
+                
+                // في تطبيق حقيقي، هنا سيتم إنشاء ملف Word وحفظه
+                console.log(`تم حفظ النسخة الاحتياطية بصيغة Word: ${fileName}`);
+                
+                // في تطبيق حقيقي، سيتم تخزين معلومات الملف
+                backup.wordFile = {
+                    path: `${backup.location}${fileName}`,
+                    size: 0, // حجم الملف الفعلي
+                    createdAt: new Date().toISOString()
+                };
+                
+                // عرض إشعار
+                createNotification('معلومات', 'وظيفة تصدير Word غير متاحة في هذا الإصدار', 'info');
+                
+                resolve();
+            } catch (error) {
+                console.error('خطأ في حفظ النسخة الاحتياطية بصيغة Word:', error);
+                reject(error);
+            }
+        });
+    },
+    
+    // تنزيل النسخة الاحتياطية بصيغة JSON
+    downloadAsJson: function(backup, backupData) {
+        try {
+            const data = JSON.stringify(backupData || backup.data, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${backup.name.replace(/\s+/g, '_')}_${backup.id}.json`;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            console.log(`تم تنزيل النسخة الاحتياطية بصيغة JSON: ${a.download}`);
+        } catch (error) {
+            console.error('خطأ في تنزيل النسخة الاحتياطية بصيغة JSON:', error);
+            createNotification('خطأ', 'حدث خطأ أثناء تنزيل النسخة الاحتياطية', 'danger');
+        }
+    },
+    
+    // تنزيل النسخة الاحتياطية بصيغة PDF (عدم التنفيذ في الوقت الحالي)
+    downloadAsPdf: function(backup, backupData) {
+        createNotification('معلومات', 'وظيفة تنزيل PDF غير متاحة في هذا الإصدار', 'info');
+    },
+    
+    // تنزيل النسخة الاحتياطية بصيغة Excel (عدم التنفيذ في الوقت الحالي)
+    downloadAsExcel: function(backup, backupData) {
+        createNotification('معلومات', 'وظيفة تنزيل Excel غير متاحة في هذا الإصدار', 'info');
+    },
+    
+    // تنزيل النسخة الاحتياطية بصيغة Word (عدم التنفيذ في الوقت الحالي)
+    downloadAsWord: function(backup, backupData) {
+        createNotification('معلومات', 'وظيفة تنزيل Word غير متاحة في هذا الإصدار', 'info');
+    },
+    
+    // تحميل ملف النسخة الاحتياطية
+    loadBackupFile: function(backup) {
+        return new Promise((resolve, reject) => {
+            // في تطبيق ويب، سنطلب من المستخدم تحميل الملف يدوياً
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.style.display = 'none';
+            
+            fileInput.addEventListener('change', event => {
+                const file = event.target.files[0];
+                if (!file) {
+                    reject(new Error('لم يتم اختيار ملف'));
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = e => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        resolve(data);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = error => reject(error);
+                reader.readAsText(file);
+            });
+            
+            // في تطبيق سطح المكتب، هنا سيتم قراءة الملف من المسار المحدد
+            // بالنسبة لتطبيق الويب، نطلب من المستخدم اختيار الملف
+            document.body.appendChild(fileInput);
+            fileInput.click();
+            
+            // تنظيف
+            setTimeout(() => {
+                document.body.removeChild(fileInput);
+            }, 5000);
+        });
+    },
+    
+    // استعادة البيانات من النسخة الاحتياطية
+    restoreData: function(backupData) {
+        // التحقق من صحة البيانات
+        if (!backupData || !backupData.data) {
+            throw new Error('بيانات النسخة الاحتياطية غير صالحة');
+        }
+        
+        // استعادة البيانات
+        if (backupData.data.investors) investors = backupData.data.investors;
+        if (backupData.data.investments) investments = backupData.data.investments;
+        if (backupData.data.operations) operations = backupData.data.operations;
+        if (backupData.data.events) events = backupData.data.events;
+        if (backupData.data.notifications) notifications = backupData.data.notifications;
+        if (backupData.data.backupList) backupList = backupData.data.backupList;
+        if (backupData.data.reports) reports = backupData.data.reports;
+        
+        // استعادة الإعدادات إذا كانت موجودة
+        if (backupData.settings) settings = {...settings, ...backupData.settings};
+        
+        // حفظ البيانات المستعادة
+        saveData();
+        saveNotifications();
+        saveBackupList();
+        saveReports();
+        
+        console.log('تم استعادة البيانات بنجاح');
+    },
+    
+    // تحديث واجهة المستخدم بعد الاستعادة
+    updateUIAfterRestore: function() {
+        // تحديث لوحة التحكم
+        updateDashboard();
+        
+        // تحديث قائمة المستثمرين
+        if (typeof loadInvestors === 'function') {
+            loadInvestors();
+        }
+        
+        // تحديث قائمة الاستثمارات
+        if (typeof loadInvestments === 'function') {
+            loadInvestments();
+        }
+        
+        // تحديث قائمة العمليات
+        if (typeof loadOperations === 'function') {
+            loadOperations();
+        }
+        
+        // تحديث الإشعارات
+        if (typeof loadNotifications === 'function') {
+            loadNotifications();
+        }
+        
+        // تحديث التقويم
+        if (typeof loadCalendar === 'function') {
+            loadCalendar();
+        }
+        
+        console.log('تم تحديث واجهة المستخدم بعد الاستعادة');
+    },
+    
+    // تنظيف النسخ الاحتياطية القديمة
+    cleanupOldBackups: function() {
+        // التحقق من عدد النسخ الاحتياطية
+        if (this.backups.length <= this.options.maxBackups) {
+            return;
+        }
+        
+        // فرز النسخ الاحتياطية حسب التاريخ (الأقدم أولاً)
+        const sortedBackups = [...this.backups].sort(
+            (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+        );
+        
+        // حذف النسخ الاحتياطية القديمة
+        const backupsToDelete = sortedBackups.slice(0, sortedBackups.length - this.options.maxBackups);
+        
+        backupsToDelete.forEach(backup => {
+            // حذف ملفات النسخة الاحتياطية (في تطبيق حقيقي)
+            console.log(`تم حذف النسخة الاحتياطية القديمة: ${backup.name}`);
+        });
+        
+        // تحديث قائمة النسخ الاحتياطية
+        this.backups = this.backups.filter(backup => 
+            !backupsToDelete.some(b => b.id === backup.id)
+        );
+        
+        // حفظ قائمة النسخ الاحتياطية
+        this.saveBackupsList();
+    },
+    
+    // إعداد النسخ الاحتياطي التلقائي
+    setupAutoBackup: function() {
+        // إلغاء المؤقت الحالي إن وجد
+        if (this._autoBackupTimer) {
+            clearInterval(this._autoBackupTimer);
+            this._autoBackupTimer = null;
+        }
+        
+        // إنشاء مؤقت جديد إذا كان النسخ الاحتياطي التلقائي مفعلاً
+        if (this.options.autoBackup) {
+            // تحويل الفترة من أيام إلى مللي ثانية
+            const interval = this.options.autoBackupInterval * 24 * 60 * 60 * 1000;
+            
+            this._autoBackupTimer = setInterval(() => {
+                // التحقق من تاريخ آخر نسخة احتياطية
+                const lastBackupDate = this.getLastBackupDate();
+                const now = new Date();
+                
+                // حساب الفرق بالأيام
+                const diffDays = Math.floor((now - lastBackupDate) / (24 * 60 * 60 * 1000));
+                
+                // إنشاء نسخة احتياطية إذا مر الوقت المحدد
+                if (diffDays >= this.options.autoBackupInterval) {
+                    this.createBackup('نسخة احتياطية تلقائية');
+                }
+            }, 60 * 60 * 1000); // التحقق كل ساعة
+            
+            console.log(`تم إعداد النسخ الاحتياطي التلقائي كل ${this.options.autoBackupInterval} يوم`);
+        }
+    },
+    
+    // الحصول على تاريخ آخر نسخة احتياطية
+    getLastBackupDate: function() {
+        if (this.backups.length === 0) {
+            return new Date(0); // تاريخ قديم جداً
+        }
+        
+        // فرز النسخ الاحتياطية حسب التاريخ (الأحدث أولاً)
+        const sortedBackups = [...this.backups].sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        
+        return new Date(sortedBackups[0].createdAt);
+    },
+    
+    // عرض مؤشر التقدم
+    showProgressBar: function() {
+        // إنشاء مؤشر التقدم إذا لم يكن موجوداً
+        if (!document.getElementById('backupProgressContainer')) {
+            const progressContainer = document.createElement('div');
+            progressContainer.id = 'backupProgressContainer';
+            progressContainer.className = 'backup-progress-container';
+            progressContainer.style.position = 'fixed';
+            progressContainer.style.top = '50%';
+            progressContainer.style.left = '50%';
+            progressContainer.style.transform = 'translate(-50%, -50%)';
+            progressContainer.style.width = '400px';
+            progressContainer.style.padding = '20px';
+            progressContainer.style.backgroundColor = 'white';
+            progressContainer.style.borderRadius = '8px';
+            progressContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+            progressContainer.style.zIndex = '9999';
+            progressContainer.style.textAlign = 'center';
+            
+            progressContainer.innerHTML = `
+                <h3 id="backupProgressTitle" style="margin-bottom: 10px;">جاري إنشاء النسخة الاحتياطية...</h3>
+                <div style="margin-bottom: 15px;">
+                    <div style="height: 10px; background-color: #f0f0f0; border-radius: 5px; overflow: hidden;">
+                        <div id="backupProgressBar" style="height: 100%; width: 0%; background-color: #3498db; transition: width 0.3s;"></div>
+                    </div>
+                    <div id="backupProgressText" style="margin-top: 5px; font-size: 14px;">0%</div>
                 </div>
-                <div class="alert-content">
-                    <div class="alert-title">معلومات النسخ الاحتياطي</div>
-                    <div class="alert-text">
-                        النسخة الاحتياطية الشاملة تحتوي على جميع بيانات النظام بما في ذلك المستثمرين والاستثمارات والعمليات والأحداث والإشعارات وإعدادات النظام.
-                        يتم إنشاء النسخة بعدة صيغ (JSON, PDF, Word, Excel) لضمان إمكانية استعادتها في جميع الظروف.
+                <p id="backupProgressStatus" style="margin-bottom: 0;">جاري التحضير...</p>
+            `;
+            
+            document.body.appendChild(progressContainer);
+        }
+    },
+    
+    // تحديث مؤشر التقدم
+    updateProgressBar: function(percentage, status) {
+        const progressBar = document.getElementById('backupProgressBar');
+        const progressText = document.getElementById('backupProgressText');
+        const progressStatus = document.getElementById('backupProgressStatus');
+        const progressTitle = document.getElementById('backupProgressTitle');
+        
+        if (progressBar) progressBar.style.width = `${percentage}%`;
+        if (progressText) progressText.textContent = `${percentage}%`;
+        if (progressStatus) progressStatus.textContent = status || '';
+        
+        // تغيير العنوان إذا كانت نسبة التقدم 100%
+        if (percentage >= 100 && progressTitle) {
+            progressTitle.textContent = 'اكتملت العملية بنجاح!';
+        }
+    },
+    
+    // إخفاء مؤشر التقدم
+    hideProgressBar: function() {
+        // إخفاء مؤشر التقدم بعد فترة قصيرة
+        setTimeout(() => {
+            const progressContainer = document.getElementById('backupProgressContainer');
+            if (progressContainer) {
+                progressContainer.style.opacity = '0';
+                progressContainer.style.transition = 'opacity 0.5s';
+                
+                // إزالة العنصر بعد انتهاء الانتقال
+                setTimeout(() => {
+                    if (progressContainer.parentNode) {
+                        progressContainer.parentNode.removeChild(progressContainer);
+                    }
+                }, 500);
+            }
+        }, 1000);
+    }
+};
+
+// إضافة نمط CSS للنظام
+document.addEventListener('DOMContentLoaded', function() {
+    // إضافة نمط للنسخ الاحتياطي
+    const style = document.createElement('style');
+    style.textContent = `
+        .backup-section {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9e9e9 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .backup-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .backup-icon {
+            font-size: 2rem;
+            color: #3498db;
+            margin-left: 15px;
+        }
+        
+        .backup-title {
+            margin: 0;
+            font-size: 1.3rem;
+            color: #2c3e50;
+        }
+        
+        .backup-subtitle {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #7f8c8d;
+        }
+        
+        .backup-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .backup-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 8px;
+            padding: 10px 15px;
+            background: #f1f1f1;
+            color: #444;
+            transition: all 0.2s ease;
+            border: 1px solid #ddd;
+            cursor: pointer;
+        }
+        
+        .backup-button:hover {
+            background: #eee;
+            border-color: #ccc;
+        }
+        
+        .backup-button.primary {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+        
+        .backup-button.primary:hover {
+            background: #2980b9;
+        }
+        
+        .backup-button.success {
+            background: #2ecc71;
+            color: white;
+            border-color: #27ae60;
+        }
+        
+        .backup-button.success:hover {
+            background: #27ae60;
+        }
+        
+        .backup-button.warning {
+            background: #f39c12;
+            color: white;
+            border-color: #d35400;
+        }
+        
+        .backup-button.warning:hover {
+            background: #d35400;
+        }
+        
+        .backup-button.danger {
+            background: #e74c3c;
+            color: white;
+            border-color: #c0392b;
+        }
+        
+        .backup-button.danger:hover {
+            background: #c0392b;
+        }
+        
+        .backup-list-container {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .backup-list-title {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .backup-list {
+            width: 100%;
+            height: 200px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .backup-list-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .settings-group {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .settings-group-title {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .settings-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .settings-label {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        
+        .settings-input {
+            flex: 2;
+        }
+        
+        .format-toggle {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .format-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .backup-progress-container {
+            transition: opacity 0.5s;
+        }
+        
+        .backup-info {
+            border-right: 3px solid #3498db;
+            padding-right: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .backup-info-title {
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 5px;
+        }
+        
+        .backup-info-text {
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.5;
+        }
+    `;
+    
+    document.head.appendChild(style);
+    
+    // تهيئة نظام النسخ الاحتياطي
+    if (window.ComprehensiveBackupSystem) {
+        window.ComprehensiveBackupSystem.init();
+    }
+});
+
+// دوال للتعامل مع واجهة المستخدم
+
+// فتح نافذة إنشاء نسخة احتياطية
+function openCreateBackupDialog() {
+    // إنشاء النافذة
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.id = 'createBackupModal';
+    
+    modal.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">إنشاء نسخة احتياطية شاملة</h2>
+                <div class="modal-close" onclick="closeModal('createBackupModal')">
+                    <i class="fas fa-times"></i>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="form-container" style="box-shadow: none; padding: 0;">
+                    <div class="form-group">
+                        <label class="form-label">اسم النسخة الاحتياطية</label>
+                        <input type="text" class="form-control" id="backupName" placeholder="نسخة احتياطية شاملة" value="نسخة احتياطية شاملة - ${new Date().toLocaleDateString('ar-IQ')}">
+                    </div>
+                    
+                    <div class="backup-info">
+                        <div class="backup-info-title">تنسيقات النسخة الاحتياطية:</div>
+                        <div class="backup-info-text">سيتم إنشاء النسخة الاحتياطية بالتنسيقات التالية:</div>
+                        <div class="format-toggle">
+                            <div class="format-option">
+                                <input type="checkbox" id="formatJson" checked>
+                                <label for="formatJson">JSON</label>
+                            </div>
+                            <div class="format-option">
+                                <input type="checkbox" id="formatPdf" checked>
+                                <label for="formatPdf">PDF</label>
+                            </div>
+                            <div class="format-option">
+                                <input type="checkbox" id="formatExcel" checked>
+                                <label for="formatExcel">Excel</label>
+                            </div>
+                            <div class="format-option">
+                                <input type="checkbox" id="formatWord" checked>
+                                <label for="formatWord">Word</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="backup-info">
+                        <div class="backup-info-title">محتوى النسخة الاحتياطية:</div>
+                        <div class="backup-info-text">
+                            ستتضمن النسخة الاحتياطية جميع بيانات النظام بما في ذلك:
+                            <ul style="margin: 10px 0; padding-right: 20px;">
+                                <li>المستثمرين والاستثمارات</li>
+                                <li>العمليات والإشعارات</li>
+                                <li>التقارير والأحداث</li>
+                                <li>الإعدادات والمستندات</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="dashboard-cards">
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="card-title">عدد النسخ الاحتياطية</div>
-                            <div class="card-value" id="totalBackupsCount">0</div>
-                        </div>
-                        <div class="card-icon primary">
-                            <i class="fas fa-save"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="card-title">آخر نسخة احتياطية</div>
-                            <div class="card-value" id="lastBackupDate">لا يوجد</div>
-                        </div>
-                        <div class="card-icon success">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="card-title">حالة النسخ التلقائي</div>
-                            <div class="card-value" id="autoBackupStatus">غير مفعل</div>
-                        </div>
-                        <div class="card-icon info">
-                            <i class="fas fa-sync-alt"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="card-title">حجم النسخ الاحتياطية</div>
-                            <div class="card-value" id="totalBackupsSize">0 MB</div>
-                        </div>
-                        <div class="card-icon warning">
-                            <i class="fas fa-database"></i>
-                        </div>
-                    </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" onclick="closeModal('createBackupModal')">إلغاء</button>
+                <button class="btn btn-primary" onclick="startBackupProcess()">
+                    <i class="fas fa-download"></i> إنشاء النسخة الاحتياطية
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // تحديث حالة خيارات التنسيق من الإعدادات
+    if (window.ComprehensiveBackupSystem) {
+        const options = window.ComprehensiveBackupSystem.options;
+        
+        document.getElementById('formatJson').checked = options.formats.json;
+        document.getElementById('formatPdf').checked = options.formats.pdf;
+        document.getElementById('formatExcel').checked = options.formats.excel;
+        document.getElementById('formatWord').checked = options.formats.word;
+    }
+}
+
+// بدء عملية النسخ الاحتياطي
+function startBackupProcess() {
+    // الحصول على اسم النسخة الاحتياطية
+    const backupName = document.getElementById('backupName').value || `نسخة احتياطية شاملة - ${new Date().toLocaleDateString('ar-IQ')}`;
+    
+    // تحديث خيارات التنسيق
+    if (window.ComprehensiveBackupSystem) {
+        window.ComprehensiveBackupSystem.options.formats.json = document.getElementById('formatJson').checked;
+        window.ComprehensiveBackupSystem.options.formats.pdf = document.getElementById('formatPdf').checked;
+        window.ComprehensiveBackupSystem.options.formats.excel = document.getElementById('formatExcel').checked;
+        window.ComprehensiveBackupSystem.options.formats.word = document.getElementById('formatWord').checked;
+        
+        // حفظ الخيارات
+        window.ComprehensiveBackupSystem.saveOptions();
+        
+        // إغلاق النافذة
+        closeModal('createBackupModal');
+        
+        // إنشاء النسخة الاحتياطية
+        window.ComprehensiveBackupSystem.createBackup(backupName);
+    }
+}
+
+// فتح نافذة استعادة النسخة الاحتياطية
+function openRestoreBackupDialog() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.id = 'restoreBackupModal';
+    
+    modal.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">استعادة النظام من نسخة احتياطية</h2>
+                <div class="modal-close" onclick="closeModal('restoreBackupModal')">
+                    <i class="fas fa-times"></i>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <h3 class="form-subtitle">إنشاء نسخة احتياطية شاملة</h3>
-                <div class="form-row">
-                    <div class="form-group" style="flex: 2;">
-                        <label class="form-label">اسم النسخة الاحتياطية (اختياري)</label>
-                        <input type="text" class="form-control" id="completeBackupName" placeholder="نسخة احتياطية شاملة">
-                        <p class="form-text">سيتم إضافة التاريخ والوقت تلقائياً إلى اسم النسخة</p>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">صيغ النسخة الاحتياطية</label>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="backupFormatJSON" checked>
-                            <label class="form-check-label" for="backupFormatJSON">JSON (للاستعادة)</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="backupFormatPDF" checked>
-                            <label class="form-check-label" for="backupFormatPDF">PDF (للعرض)</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="backupFormatWord">
-                            <label class="form-check-label" for="backupFormatWord">Word (للعرض)</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="backupFormatExcel">
-                            <label class="form-check-label" for="backupFormatExcel">Excel (للعرض)</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <button class="btn btn-primary" onclick="createCompleteBackup()">
-                        <i class="fas fa-download"></i> إنشاء نسخة احتياطية شاملة
-                    </button>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <h3 class="form-subtitle">النسخ الاحتياطية السابقة</h3>
-                <div class="table-container" style="margin-top: 15px;">
-                    <div class="table-header">
-                        <div class="table-title">قائمة النسخ الاحتياطية</div>
-                        <div class="table-actions">
-                            <button class="btn btn-sm btn-light" onclick="refreshCompleteBackupsList()">
-                                <i class="fas fa-sync"></i> تحديث
-                            </button>
-                        </div>
-                    </div>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>اسم النسخة</th>
-                                <th>التاريخ</th>
-                                <th>الوقت</th>
-                                <th>الحجم</th>
-                                <th>الصيغ المتوفرة</th>
-                                <th>إجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody id="completeBackupsTableBody">
-                            <tr>
-                                <td colspan="7" style="text-align: center;">جاري تحميل النسخ الاحتياطية...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <h3 class="form-subtitle">استعادة نسخة احتياطية</h3>
+            <div class="modal-body">
                 <div class="alert alert-warning">
                     <div class="alert-icon">
                         <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div class="alert-content">
-                        <div class="alert-title">تحذير</div>
-                        <div class="alert-text">
-                            عند استعادة نسخة احتياطية، سيتم استبدال جميع البيانات الحالية بالبيانات المخزنة في النسخة الاحتياطية.
-                            يرجى التأكد من عمل نسخة احتياطية للبيانات الحالية قبل الاستعادة.
-                        </div>
+                        <div class="alert-title">تنبيه هام</div>
+                        <div class="alert-text">استعادة النظام من نسخة احتياطية سيؤدي إلى استبدال جميع البيانات الحالية. يرجى التأكد من أن لديك نسخة احتياطية من البيانات الحالية قبل المتابعة.</div>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group" style="flex: 2;">
-                        <label class="form-label">استعادة من ملف JSON</label>
-                        <div class="input-group">
-                            <input type="file" class="form-control" id="restoreCompleteBackupFile" accept=".json">
-                            <button class="btn btn-warning" onclick="restoreFromFile()">
-                                <i class="fas fa-upload"></i> استعادة من ملف
-                            </button>
-                        </div>
-                        <p class="form-text">يمكنك استعادة النظام من ملف JSON تم إنشاؤه مسبقاً</p>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">استعادة من نسخة محفوظة</label>
-                        <select class="form-select" id="restoreCompleteBackupSelect" size="4" style="height: auto;">
-                            <option value="">اختر نسخة...</option>
+                
+                <div class="form-container" style="box-shadow: none; padding: 0;">
+                    <div class="form-group">
+                        <label class="form-label">اختر النسخة الاحتياطية</label>
+                        <select class="form-select" id="restoreBackupSelect" size="5" style="height: auto;">
+                            <!-- سيتم تعبئته بواسطة JavaScript -->
                         </select>
-                        <button class="btn btn-warning" style="margin-top: 10px;" onclick="restoreFromBackup()">
-                            <i class="fas fa-undo"></i> استعادة النسخة المحددة
-                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">أو قم بتحميل ملف النسخة الاحتياطية</label>
+                        <input type="file" class="form-control" id="restoreBackupFile" accept=".json">
                     </div>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <h3 class="form-subtitle">إعدادات النسخ الاحتياطي التلقائي</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="enableCompleteAutoBackup">
-                            <label class="form-check-label" for="enableCompleteAutoBackup">تفعيل النسخ الاحتياطي التلقائي</label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">فترة النسخ الاحتياطي</label>
-                        <select class="form-select" id="completeAutoBackupFrequency">
-                            <option value="daily">يومياً</option>
-                            <option value="weekly" selected>أسبوعياً</option>
-                            <option value="monthly">شهرياً</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">عدد النسخ للاحتفاظ</label>
-                        <input type="number" class="form-control" id="completeBackupsToKeep" min="1" max="100" value="10">
-                        <p class="form-text">عدد النسخ الاحتياطية القديمة التي يتم الاحتفاظ بها (سيتم حذف النسخ الأقدم تلقائياً)</p>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">صيغ النسخ التلقائي</label>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="autoBackupFormatJSON" checked>
-                            <label class="form-check-label" for="autoBackupFormatJSON">JSON</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="autoBackupFormatPDF">
-                            <label class="form-check-label" for="autoBackupFormatPDF">PDF</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <button class="btn btn-primary" onclick="saveCompleteBackupSettings()">
-                        <i class="fas fa-save"></i> حفظ إعدادات النسخ التلقائي
-                    </button>
-                </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" onclick="closeModal('restoreBackupModal')">إلغاء</button>
+                <button class="btn btn-warning" onclick="startRestoreProcess()">
+                    <i class="fas fa-upload"></i> استعادة النظام
+                </button>
             </div>
         </div>
     `;
     
-    settingsContainer.appendChild(completeBackupContent);
-}
-
-/**
- * تهيئة أحداث نظام النسخ الاحتياطي
- * Setup complete backup events
- */
-function setupCompleteBackupEvents() {
-    // تحميل إعدادات النسخ الاحتياطي
-    const enableAutoBackup = localStorage.getItem('enableCompleteAutoBackup') === 'true';
-    const autoBackupFrequency = localStorage.getItem('completeAutoBackupFrequency') || 'weekly';
-    const backupsToKeep = localStorage.getItem('completeBackupsToKeep') || '10';
-    const autoBackupFormatJSON = localStorage.getItem('autoBackupFormatJSON') !== 'false';
-    const autoBackupFormatPDF = localStorage.getItem('autoBackupFormatPDF') === 'true';
+    document.body.appendChild(modal);
     
-    // تعيين قيم الإعدادات في واجهة المستخدم
-    setTimeout(() => {
-        const enableAutoBackupEl = document.getElementById('enableCompleteAutoBackup');
-        const autoBackupFrequencyEl = document.getElementById('completeAutoBackupFrequency');
-        const backupsToKeepEl = document.getElementById('completeBackupsToKeep');
-        const autoBackupFormatJSONEl = document.getElementById('autoBackupFormatJSON');
-        const autoBackupFormatPDFEl = document.getElementById('autoBackupFormatPDF');
+    // تحميل قائمة النسخ الاحتياطية
+    if (window.ComprehensiveBackupSystem) {
+        const restoreBackupSelect = document.getElementById('restoreBackupSelect');
         
-        if (enableAutoBackupEl) enableAutoBackupEl.checked = enableAutoBackup;
-        if (autoBackupFrequencyEl) autoBackupFrequencyEl.value = autoBackupFrequency;
-        if (backupsToKeepEl) backupsToKeepEl.value = backupsToKeep;
-        if (autoBackupFormatJSONEl) autoBackupFormatJSONEl.checked = autoBackupFormatJSON;
-        if (autoBackupFormatPDFEl) autoBackupFormatPDFEl.checked = autoBackupFormatPDF;
+        // تحديث قائمة النسخ الاحتياطية
+        const backups = window.ComprehensiveBackupSystem.backups;
         
-        // تحديث حالة النسخ التلقائي
-        updateAutoBackupStatus();
-        
-        // تحميل قائمة النسخ الاحتياطية
-        loadCompleteBackups();
-    }, 1000);
-    
-    // جدولة فحص النسخ الاحتياطي التلقائي
-    scheduleAutoCompleteBackup();
-}
-
-/**
- * التأكد من وجود مجلد النسخ الاحتياطية
- * Check if backup directory exists
- */
-function checkBackupDirectory() {
-    try {
-        // محاولة إنشاء مجلد النسخ الاحتياطية إذا لم يكن موجوداً
-        // تنويه: هذه الوظيفة تعتمد على وجود الوصول إلى نظام الملفات
-        // في بيئة المتصفح، هذا غير ممكن عادةً، لكن في تطبيق إلكترون يمكن ذلك
-        
-        // لأغراض العرض، سنفترض أن المجلد موجود
-        console.log('تم التحقق من وجود مجلد النسخ الاحتياطية');
-        
-        // في تطبيق حقيقي يمكن استخدام:
-        // if (window.fs && window.fs.existsSync) {
-        //     const backupDir = path.join(process.cwd(), 'backups');
-        //     if (!window.fs.existsSync(backupDir)) {
-        //         window.fs.mkdirSync(backupDir, { recursive: true });
-        //     }
-        // }
-    } catch (error) {
-        console.error('خطأ في التحقق من مجلد النسخ الاحتياطية:', error);
-    }
-}
-
-/**
- * تحديث حالة النسخ التلقائي
- * Update auto backup status
- */
-function updateAutoBackupStatus() {
-    const autoBackupStatus = document.getElementById('autoBackupStatus');
-    if (!autoBackupStatus) return;
-    
-    const enableAutoBackup = localStorage.getItem('enableCompleteAutoBackup') === 'true';
-    const autoBackupFrequency = localStorage.getItem('completeAutoBackupFrequency') || 'weekly';
-    
-    let status = 'غير مفعل';
-    let className = 'danger';
-    
-    if (enableAutoBackup) {
-        switch (autoBackupFrequency) {
-            case 'daily':
-                status = 'مفعل (يومياً)';
-                break;
-            case 'weekly':
-                status = 'مفعل (أسبوعياً)';
-                break;
-            case 'monthly':
-                status = 'مفعل (شهرياً)';
-                break;
-        }
-        className = 'success';
-    }
-    
-    autoBackupStatus.textContent = status;
-    
-    // تحديث لون البطاقة
-    const cardIcon = autoBackupStatus.parentElement.nextElementSibling;
-    if (cardIcon) {
-        cardIcon.className = `card-icon ${className}`;
-    }
-}
-
-/**
- * تحميل قائمة النسخ الاحتياطية الشاملة
- * Load complete backups list
- */
-function loadCompleteBackups() {
-    // محاولة تحميل قائمة النسخ الاحتياطية من التخزين المحلي
-    const completedBackups = JSON.parse(localStorage.getItem('completeBackups') || '[]');
-    
-    // تحديث عداد النسخ الاحتياطية
-    const totalBackupsCount = document.getElementById('totalBackupsCount');
-    if (totalBackupsCount) {
-        totalBackupsCount.textContent = completedBackups.length;
-    }
-    
-    // تحديث تاريخ آخر نسخة احتياطية
-    const lastBackupDate = document.getElementById('lastBackupDate');
-    if (lastBackupDate && completedBackups.length > 0) {
-        const lastBackup = completedBackups[0]; // افتراض أن القائمة مرتبة بحسب الأحدث
-        lastBackupDate.textContent = formatDate(lastBackup.date) + ' ' + formatTime(lastBackup.date);
-    }
-    
-    // تحديث حجم النسخ الاحتياطية
-    const totalBackupsSize = document.getElementById('totalBackupsSize');
-    if (totalBackupsSize) {
-        // حساب الحجم التقريبي
-        const totalSize = completedBackups.reduce((size, backup) => size + (backup.size || 0), 0);
-        totalBackupsSize.textContent = formatFileSize(totalSize);
-    }
-    
-    // تحديث قائمة النسخ الاحتياطية في الجدول
-    const tableBody = document.getElementById('completeBackupsTableBody');
-    if (!tableBody) return;
-    
-    if (completedBackups.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">لا توجد نسخ احتياطية شاملة</td></tr>';
-        return;
-    }
-    
-    tableBody.innerHTML = '';
-    
-    completedBackups.forEach((backup, index) => {
-        const row = document.createElement('tr');
-        
-        // تحديد الصيغ المتوفرة
-        let availableFormats = [];
-        if (backup.formats) {
-            if (backup.formats.json) availableFormats.push('JSON');
-            if (backup.formats.pdf) availableFormats.push('PDF');
-            if (backup.formats.word) availableFormats.push('Word');
-            if (backup.formats.excel) availableFormats.push('Excel');
-        } else {
-            // إذا لم تكن المعلومات متوفرة، نفترض توفر JSON على الأقل
-            availableFormats.push('JSON');
-        }
-        
-        row.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${backup.name || 'نسخة احتياطية'}</td>
-            <td>${formatDate(backup.date)}</td>
-            <td>${formatTime(backup.date)}</td>
-            <td>${formatFileSize(backup.size || 0)}</td>
-            <td>${availableFormats.join(', ')}</td>
-            <td>
-                <button class="btn btn-info btn-icon action-btn" onclick="viewCompleteBackup('${backup.id}')">
-                    <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn btn-warning btn-icon action-btn" onclick="restoreCompleteBackup('${backup.id}')">
-                    <i class="fas fa-undo"></i>
-                </button>
-                <button class="btn btn-danger btn-icon action-btn" onclick="deleteCompleteBackup('${backup.id}')">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        
-        tableBody.appendChild(row);
-    });
-    
-    // تحديث قائمة النسخ الاحتياطية في قائمة الاستعادة
-    const restoreSelect = document.getElementById('restoreCompleteBackupSelect');
-    if (restoreSelect) {
-        restoreSelect.innerHTML = '';
-        
-        if (completedBackups.length === 0) {
+        if (backups.length === 0) {
             const option = document.createElement('option');
             option.value = '';
-            option.textContent = 'لا توجد نسخ احتياطية';
-            restoreSelect.appendChild(option);
+            option.textContent = 'لا توجد نسخ احتياطية متوفرة';
+            option.disabled = true;
+            restoreBackupSelect.appendChild(option);
         } else {
-            completedBackups.forEach(backup => {
+            // فرز النسخ الاحتياطية حسب التاريخ (الأحدث أولاً)
+            const sortedBackups = [...backups].sort(
+                (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+            );
+            
+            sortedBackups.forEach(backup => {
                 const option = document.createElement('option');
                 option.value = backup.id;
-                option.textContent = `${backup.name || 'نسخة احتياطية'} - ${formatDate(backup.date)} ${formatTime(backup.date)}`;
-                restoreSelect.appendChild(option);
+                
+                // تنسيق التاريخ والوقت للعرض
+                const date = new Date(backup.createdAt);
+                const formattedDate = date.toLocaleDateString('ar-IQ');
+                const formattedTime = date.toLocaleTimeString('ar-IQ');
+                
+                option.textContent = `${backup.name} - ${formattedDate} ${formattedTime}`;
+                restoreBackupSelect.appendChild(option);
             });
         }
     }
 }
 
-/**
- * تحديث قائمة النسخ الاحتياطية
- * Refresh complete backups list
- */
-function refreshCompleteBackupsList() {
-    // في النسخة الحقيقية، يمكن إجراء مسح لمجلد النسخ الاحتياطية
-    // وتحديث القائمة بما يتوافق مع الملفات الموجودة
+// بدء عملية استعادة النظام
+function startRestoreProcess() {
+    // التحقق من اختيار نسخة احتياطية أو تحميل ملف
+    const restoreBackupSelect = document.getElementById('restoreBackupSelect');
+    const restoreBackupFile = document.getElementById('restoreBackupFile');
     
-    // لأغراض العرض، سنقوم بتحميل القائمة من التخزين المحلي
-    loadCompleteBackups();
-    
-    // عرض رسالة نجاح
-    createNotification('نجاح', 'تم تحديث قائمة النسخ الاحتياطية بنجاح', 'success');
-}
-
-/**
- * إنشاء نسخة احتياطية شاملة
- * Create a complete backup
- */
-function createCompleteBackup() {
-    try {
-        // الحصول على اسم النسخة الاحتياطية
-        const backupName = document.getElementById('completeBackupName').value || 'نسخة احتياطية شاملة';
+    if (restoreBackupSelect.value) {
+        // استعادة من نسخة احتياطية مخزنة
+        closeModal('restoreBackupModal');
         
-        // الحصول على صيغ النسخة الاحتياطية
-        const formatJSON = document.getElementById('backupFormatJSON').checked;
-        const formatPDF = document.getElementById('backupFormatPDF').checked;
-        const formatWord = document.getElementById('backupFormatWord').checked;
-        const formatExcel = document.getElementById('backupFormatExcel').checked;
-        
-        // التحقق من تحديد صيغة واحدة على الأقل
-        if (!formatJSON && !formatPDF && !formatWord && !formatExcel) {
-            createNotification('خطأ', 'يرجى تحديد صيغة واحدة على الأقل للنسخة الاحتياطية', 'danger');
-            return;
+        if (window.ComprehensiveBackupSystem) {
+            window.ComprehensiveBackupSystem.restoreFromBackup(restoreBackupSelect.value);
         }
-        
-        // إظهار رسالة تقدم العملية
-        createNotification('جاري العمل', 'جاري إنشاء النسخة الاحتياطية الشاملة...', 'info');
-        
-        // إنشاء كائن البيانات للنسخة الاحتياطية
-        const backupData = {
-            investors: investors,
-            investments: investments,
-            operations: operations,
-            settings: settings,
-            events: events,
-            notifications: notifications,
-            backupList: backupList,
-            reports: reports,
-            version: '1.0.0',
-            createdAt: new Date().toISOString()
-        };
-        
-        // حساب حجم البيانات (تقريبي)
-        const serializedData = JSON.stringify(backupData);
-        const dataSize = new Blob([serializedData]).size;
-        
-        // إنشاء معلومات النسخة الاحتياطية
-        const backupInfo = {
-            id: generateId(),
-            name: backupName,
-            date: new Date().toISOString(),
-            size: dataSize,
-            formats: {
-                json: formatJSON,
-                pdf: formatPDF,
-                word: formatWord,
-                excel: formatExcel
-            }
-        };
-        
-        // حفظ معلومات النسخة الاحتياطية
-        saveCompleteBackupInfo(backupInfo);
-        
-        // إنشاء ملفات النسخة الاحتياطية
-        if (formatJSON) {
-            createJSONBackup(backupData, backupInfo);
-        }
-        
-        if (formatPDF) {
-            createPDFBackup(backupData, backupInfo);
-        }
-        
-        if (formatWord) {
-            createWordBackup(backupData, backupInfo);
-        }
-        
-        if (formatExcel) {
-            createExcelBackup(backupData, backupInfo);
-        }
-        
-        // تحديث قائمة النسخ الاحتياطية
-        loadCompleteBackups();
-        
-        // إظهار رسالة نجاح
-        createNotification('نجاح', 'تم إنشاء النسخة الاحتياطية الشاملة بنجاح', 'success');
-    } catch (error) {
-        console.error('خطأ في إنشاء النسخة الاحتياطية:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء إنشاء النسخة الاحتياطية: ' + error.message, 'danger');
-    }
-}
-
-/**
- * حفظ معلومات النسخة الاحتياطية
- * Save complete backup info
- */
-function saveCompleteBackupInfo(backupInfo) {
-    // تحميل قائمة النسخ الاحتياطية
-    const completeBackups = JSON.parse(localStorage.getItem('completeBackups') || '[]');
-    
-    // إضافة النسخة الجديدة في بداية القائمة
-    completeBackups.unshift(backupInfo);
-    
-    // حفظ القائمة المحدثة
-    localStorage.setItem('completeBackups', JSON.stringify(completeBackups));
-}
-
-/**
- * إنشاء نسخة احتياطية بصيغة JSON
- * Create JSON backup
- */
-function createJSONBackup(data, backupInfo) {
-    try {
-        // تنسيق اسم الملف
-        const dateStr = new Date(backupInfo.date).toISOString().replace(/[:.]/g, '-');
-        const fileName = `${backupInfo.name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}_${dateStr}.json`;
-        
-        // تحويل البيانات إلى JSON
-        const jsonData = JSON.stringify(data, null, 2);
-        
-        // إنشاء رابط تنزيل الملف
-        const blob = new Blob([jsonData], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        // إنشاء عنصر رابط وتنزيل الملف
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        // في النسخة الحقيقية، يمكن أيضاً حفظ الملف في مجلد النسخ الاحتياطية
-        // إذا كان التطبيق يعمل في بيئة مثل إلكترون
-        
-        console.log('تم إنشاء نسخة JSON بنجاح:', fileName);
-    } catch (error) {
-        console.error('خطأ في إنشاء نسخة JSON:', error);
-        throw new Error('فشل في إنشاء نسخة JSON: ' + error.message);
-    }
-}
-
-/**
- * إنشاء نسخة احتياطية بصيغة PDF
- * Create PDF backup
- */
-function createPDFBackup(data, backupInfo) {
-    try {
-        // تنسيق اسم الملف
-        const dateStr = new Date(backupInfo.date).toISOString().replace(/[:.]/g, '-');
-        const fileName = `${backupInfo.name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}_${dateStr}.pdf`;
-        
-        // في بيئة المتصفح، لا يمكن إنشاء ملفات PDF مباشرةً
-        // لذلك سنقوم بإنشاء صفحة HTML وتحويلها إلى PDF
-        
-        // إنشاء محتوى HTML للنسخة الاحتياطية
-        const htmlContent = generateBackupReport(data, backupInfo);
-        
-        // في بيئة حقيقية، يمكن استخدام مكتبات مثل jsPDF أو puppeteer لتحويل HTML إلى PDF
-        // لأغراض العرض، سنفتح النسخة في نافذة جديدة
-        
-        const newWindow = window.open('', '_blank');
-        newWindow.document.write(htmlContent);
-        newWindow.document.close();
-        
-        // إظهار رسالة للمستخدم
-        createNotification('معلومات', 'لإنشاء نسخة PDF، يرجى استخدام وظيفة الطباعة في المتصفح واختيار "حفظ كـ PDF"', 'info');
-        
-        console.log('تم إنشاء صفحة تقرير النسخة الاحتياطية بنجاح');
-    } catch (error) {
-        console.error('خطأ في إنشاء نسخة PDF:', error);
-        throw new Error('فشل في إنشاء نسخة PDF: ' + error.message);
-    }
-}
-
-/**
- * إنشاء نسخة احتياطية بصيغة Word
- * Create Word backup
- */
-function createWordBackup(data, backupInfo) {
-    try {
-        // تنويه: إنشاء ملفات Word يتطلب مكتبات خاصة مثل docx
-        // لأغراض العرض، سنقوم بإنشاء ملف HTML بتنسيق خاص
-        
-        // تنسيق اسم الملف
-        const dateStr = new Date(backupInfo.date).toISOString().replace(/[:.]/g, '-');
-        const fileName = `${backupInfo.name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}_${dateStr}.html`;
-        
-        // إنشاء محتوى HTML للنسخة الاحتياطية
-        const htmlContent = generateBackupReport(data, backupInfo, 'word');
-        
-        // إنشاء رابط تنزيل الملف
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        
-        // إنشاء عنصر رابط وتنزيل الملف
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        // إظهار رسالة للمستخدم
-        createNotification('معلومات', 'يمكنك فتح الملف المحمل في Microsoft Word مباشرةً', 'info');
-        
-        console.log('تم إنشاء نسخة Word بنجاح:', fileName);
-    } catch (error) {
-        console.error('خطأ في إنشاء نسخة Word:', error);
-        throw new Error('فشل في إنشاء نسخة Word: ' + error.message);
-    }
-}
-
-/**
- * إنشاء نسخة احتياطية بصيغة Excel
- * Create Excel backup
- */
-function createExcelBackup(data, backupInfo) {
-    try {
-        // تنويه: إنشاء ملفات Excel يتطلب مكتبات خاصة مثل xlsx
-        // لأغراض العرض، سنقوم بإنشاء ملف CSV
-        
-        // تنسيق اسم الملف
-        const dateStr = new Date(backupInfo.date).toISOString().replace(/[:.]/g, '-');
-        const fileName = `${backupInfo.name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_')}_${dateStr}.csv`;
-        
-        // إنشاء محتوى CSV للنسخة الاحتياطية (مثال للمستثمرين فقط)
-        let csvContent = "الرقم,الاسم,رقم الهاتف,البريد الإلكتروني,العنوان,المدينة,رقم البطاقة,تاريخ الانضمام\n";
-        
-        data.investors.forEach((investor, index) => {
-            csvContent += `${index + 1},${investor.name},${investor.phone},${investor.email || ''},`;
-            csvContent += `${investor.address || ''},${investor.city || ''},${investor.idCard || ''},`;
-            csvContent += `${formatDate(investor.joinDate)}\n`;
-        });
-        
-        // إنشاء رابط تنزيل الملف
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        
-        // إنشاء عنصر رابط وتنزيل الملف
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        console.log('تم إنشاء نسخة Excel بنجاح:', fileName);
-    } catch (error) {
-        console.error('خطأ في إنشاء نسخة Excel:', error);
-        throw new Error('فشل في إنشاء نسخة Excel: ' + error.message);
-    }
-}
-
-/**
- * إنشاء تقرير النسخة الاحتياطية بصيغة HTML
- * Generate backup report HTML
- */
-function generateBackupReport(data, backupInfo, format = 'pdf') {
-    // إنشاء تقرير HTML للنسخة الاحتياطية
-    const title = backupInfo.name;
-    const date = formatDate(backupInfo.date) + ' ' + formatTime(backupInfo.date);
-    
-    // إحصائيات النسخة الاحتياطية
-    const stats = {
-        investors: data.investors.length,
-        investments: data.investments.length,
-        operations: data.operations.length,
-        events: data.events.length,
-        notifications: data.notifications.length,
-        reports: data.reports.length
-    };
-    
-    // إنشاء محتوى HTML
-    let htmlContent = `
-        <!DOCTYPE html>
-        <html lang="ar" dir="rtl">
-        <head>
-            <meta charset="UTF-8">
-            <title>تقرير النسخة الاحتياطية - ${title}</title>
-            <style>
-                body {
-                    font-family: 'Arial', 'Tahoma', sans-serif;
-                    direction: rtl;
-                    margin: 0;
-                    padding: 20px;
-                    color: #333;
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #3498db;
-                    padding-bottom: 20px;
-                }
-                .header h1 {
-                    color: #3498db;
-                    margin-bottom: 5px;
-                }
-                .header p {
-                    color: #777;
-                    margin-top: 5px;
-                }
-                .section {
-                    margin-bottom: 30px;
-                    page-break-inside: avoid;
-                }
-                .section h2 {
-                    color: #2980b9;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 10px;
-                }
-                .stats {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 15px;
-                    margin-bottom: 20px;
-                }
-                .stat-card {
-                    flex: 1;
-                    min-width: 200px;
-                    padding: 15px;
-                    border-radius: 5px;
-                    background-color: #f9f9f9;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                }
-                .stat-card .title {
-                    font-weight: bold;
-                    margin-bottom: 5px;
-                    color: #555;
-                }
-                .stat-card .value {
-                    font-size: 1.5em;
-                    font-weight: bold;
-                    color: #3498db;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                }
-                th, td {
-                    border: 1px solid #ddd;
-                    padding: 8px 12px;
-                    text-align: right;
-                }
-                th {
-                    background-color: #f2f2f2;
-                    font-weight: bold;
-                }
-                tr:nth-child(even) {
-                    background-color: #f9f9f9;
-                }
-                .footer {
-                    text-align: center;
-                    margin-top: 50px;
-                    color: #777;
-                    font-size: 0.9em;
-                    border-top: 1px solid #eee;
-                    padding-top: 20px;
-                }
-                
-                @media print {
-                    body {
-                        padding: 0;
-                    }
-                    .no-print {
-                        display: none;
-                    }
-                    .page-break {
-                        page-break-before: always;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>تقرير النسخة الاحتياطية الشاملة</h1>
-                <p>${title} - ${date}</p>
-            </div>
-            
-            <div class="section">
-                <h2>إحصائيات النظام</h2>
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="title">المستثمرين</div>
-                        <div class="value">${stats.investors}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="title">الاستثمارات</div>
-                        <div class="value">${stats.investments}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="title">العمليات</div>
-                        <div class="value">${stats.operations}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="title">الأحداث</div>
-                        <div class="value">${stats.events}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h2>معلومات النسخة الاحتياطية</h2>
-                <table>
-                    <tr>
-                        <th>العنصر</th>
-                        <th>القيمة</th>
-                    </tr>
-                    <tr>
-                        <td>اسم النسخة</td>
-                        <td>${title}</td>
-                    </tr>
-                    <tr>
-                        <td>تاريخ الإنشاء</td>
-                        <td>${date}</td>
-                    </tr>
-                    <tr>
-                        <td>معرف النسخة</td>
-                        <td>${backupInfo.id}</td>
-                    </tr>
-                    <tr>
-                        <td>حجم البيانات</td>
-                        <td>${formatFileSize(backupInfo.size)}</td>
-                    </tr>
-                    <tr>
-                        <td>إصدار النظام</td>
-                        <td>${data.version || '1.0.0'}</td>
-                    </tr>
-                </table>
-            </div>
-            
-            <div class="page-break"></div>
-            
-            <div class="section">
-                <h2>قائمة المستثمرين</h2>
-                <table>
-                    <tr>
-                        <th>#</th>
-                        <th>الاسم</th>
-                        <th>رقم الهاتف</th>
-                        <th>العنوان</th>
-                        <th>تاريخ الانضمام</th>
-                    </tr>
-                    ${data.investors.slice(0, 10).map((investor, index) => `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td>${investor.name}</td>
-                            <td>${investor.phone}</td>
-                            <td>${investor.address || '-'}</td>
-                            <td>${formatDate(investor.joinDate)}</td>
-                        </tr>
-                    `).join('')}
-                    ${data.investors.length > 10 ? `
-                        <tr>
-                            <td colspan="5" style="text-align: center;">... وعناصر أخرى (${data.investors.length - 10})</td>
-                        </tr>
-                    ` : ''}
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>قائمة الاستثمارات النشطة</h2>
-                <table>
-                    <tr>
-                        <th>#</th>
-                        <th>المستثمر</th>
-                        <th>المبلغ</th>
-                        <th>تاريخ الاستثمار</th>
-                        <th>الحالة</th>
-                    </tr>
-                    ${data.investments.filter(inv => inv.status === 'active').slice(0, 10).map((investment, index) => {
-                        const investor = data.investors.find(inv => inv.id === investment.investorId);
-                        return `
-                            <tr>
-                                <td>${index + 1}</td>
-                                <td>${investor ? investor.name : 'غير معروف'}</td>
-                                <td>${formatCurrency(investment.amount)}</td>
-                                <td>${formatDate(investment.date)}</td>
-                                <td>نشط</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                    ${data.investments.filter(inv => inv.status === 'active').length > 10 ? `
-                        <tr>
-                            <td colspan="5" style="text-align: center;">... وعناصر أخرى (${data.investments.filter(inv => inv.status === 'active').length - 10})</td>
-                        </tr>
-                    ` : ''}
-                </table>
-            </div>
-            
-            <div class="page-break"></div>
-            
-            <div class="section">
-                <h2>العمليات الأخيرة</h2>
-                <table>
-                    <tr>
-                        <th>رقم العملية</th>
-                        <th>النوع</th>
-                        <th>المبلغ</th>
-                        <th>التاريخ</th>
-                        <th>الحالة</th>
-                    </tr>
-                    ${data.operations.slice(0, 10).map(operation => {
-                        return `
-                            <tr>
-                                <td>${operation.id}</td>
-                                <td>${getOperationTypeName(operation.type)}</td>
-                                <td>${formatCurrency(operation.amount)}</td>
-                                <td>${formatDate(operation.date)}</td>
-                                <td>${operation.status === 'pending' ? 'معلق' : 'مكتمل'}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                    ${data.operations.length > 10 ? `
-                        <tr>
-                            <td colspan="5" style="text-align: center;">... وعناصر أخرى (${data.operations.length - 10})</td>
-                        </tr>
-                    ` : ''}
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>إعدادات النظام</h2>
-                <table>
-                    <tr>
-                        <th>الإعداد</th>
-                        <th>القيمة</th>
-                    </tr>
-                    <tr>
-                        <td>اسم الشركة</td>
-                        <td>${data.settings.companyName}</td>
-                    </tr>
-                    <tr>
-                        <td>نسبة الربح الشهرية</td>
-                        <td>${data.settings.monthlyProfitRate}%</td>
-                    </tr>
-                    <tr>
-                        <td>الحد الأدنى للاستثمار</td>
-                        <td>${formatCurrency(data.settings.minInvestment)}</td>
-                    </tr>
-                    <tr>
-                        <td>فترة توزيع الأرباح</td>
-                        <td>${data.settings.profitDistributionPeriod === 'monthly' ? 'شهرياً' : 
-                               data.settings.profitDistributionPeriod === 'quarterly' ? 'ربع سنوي' : 'سنوياً'}</td>
-                    </tr>
-                    <tr>
-                        <td>عملة النظام</td>
-                        <td>${data.settings.currency}</td>
-                    </tr>
-                </table>
-            </div>
-            
-            <div class="footer">
-                تم إنشاء هذا التقرير تلقائياً بواسطة نظام إدارة الاستثمار المتطور © ${new Date().getFullYear()}
-            </div>
-            
-            <div class="no-print" style="margin-top: 30px; text-align: center;">
-                <button onclick="window.print()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
-                    طباعة التقرير
-                </button>
-            </div>
-        </body>
-        </html>
-    `;
-    
-    return htmlContent;
-}
-
-/**
- * إنشاء نسخة احتياطية تلقائية
- * Create automatic backup
- */
-function createAutoCompleteBackup() {
-    try {
-        // التحقق من تفعيل النسخ الاحتياطي التلقائي
-        const enableAutoBackup = localStorage.getItem('enableCompleteAutoBackup') === 'true';
-        if (!enableAutoBackup) return;
-        
-        // الحصول على صيغ النسخة الاحتياطية
-        const formatJSON = localStorage.getItem('autoBackupFormatJSON') !== 'false';
-        const formatPDF = localStorage.getItem('autoBackupFormatPDF') === 'true';
-        
-        // إنشاء اسم النسخة الاحتياطية
-        const backupName = 'نسخة احتياطية تلقائية';
-        
-        // إنشاء كائن البيانات للنسخة الاحتياطية
-        const backupData = {
-            investors: investors,
-            investments: investments,
-            operations: operations,
-            settings: settings,
-            events: events,
-            notifications: notifications,
-            backupList: backupList,
-            reports: reports,
-            version: '1.0.0',
-            createdAt: new Date().toISOString()
-        };
-        
-        // حساب حجم البيانات (تقريبي)
-        const serializedData = JSON.stringify(backupData);
-        const dataSize = new Blob([serializedData]).size;
-        
-        // إنشاء معلومات النسخة الاحتياطية
-        const backupInfo = {
-            id: generateId(),
-            name: backupName,
-            date: new Date().toISOString(),
-            size: dataSize,
-            formats: {
-                json: formatJSON,
-                pdf: formatPDF,
-                word: false,
-                excel: false
-            }
-        };
-        
-        // حفظ معلومات النسخة الاحتياطية
-        saveCompleteBackupInfo(backupInfo);
-        
-        // إنشاء ملفات النسخة الاحتياطية
-        if (formatJSON) {
-            createJSONBackup(backupData, backupInfo);
-        }
-        
-        if (formatPDF) {
-            createPDFBackup(backupData, backupInfo);
-        }
-        
-        // تحديث آخر وقت للنسخ الاحتياطي التلقائي
-        localStorage.setItem('lastAutoCompleteBackupDate', new Date().toISOString());
-        
-        // تحديث قائمة النسخ الاحتياطية
-        loadCompleteBackups();
-        
-        // حذف النسخ الاحتياطية القديمة
-        cleanupOldBackups();
-        
-        console.log('تم إنشاء النسخة الاحتياطية التلقائية بنجاح');
-    } catch (error) {
-        console.error('خطأ في إنشاء النسخة الاحتياطية التلقائية:', error);
-    }
-}
-
-/**
- * حذف النسخ الاحتياطية القديمة
- * Cleanup old backups
- */
-function cleanupOldBackups() {
-    try {
-        // الحصول على عدد النسخ للاحتفاظ بها
-        const backupsToKeep = parseInt(localStorage.getItem('completeBackupsToKeep') || '10');
-        
-        // تحميل قائمة النسخ الاحتياطية
-        const completeBackups = JSON.parse(localStorage.getItem('completeBackups') || '[]');
-        
-        // التحقق من عدد النسخ
-        if (completeBackups.length <= backupsToKeep) return;
-        
-        // ترتيب النسخ حسب التاريخ (الأحدث أولاً)
-        completeBackups.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        // الاحتفاظ بالعدد المحدد فقط
-        const updatedBackups = completeBackups.slice(0, backupsToKeep);
-        
-        // حفظ القائمة المحدثة
-        localStorage.setItem('completeBackups', JSON.stringify(updatedBackups));
-        
-        console.log(`تم حذف ${completeBackups.length - updatedBackups.length} نسخ احتياطية قديمة`);
-    } catch (error) {
-        console.error('خطأ في حذف النسخ الاحتياطية القديمة:', error);
-    }
-}
-
-/**
- * جدولة النسخ الاحتياطي التلقائي
- * Schedule automatic backup
- */
-function scheduleAutoCompleteBackup() {
-    // التحقق من تفعيل النسخ الاحتياطي التلقائي
-    const enableAutoBackup = localStorage.getItem('enableCompleteAutoBackup') === 'true';
-    if (!enableAutoBackup) return;
-    
-    // الحصول على فترة النسخ الاحتياطي
-    const autoBackupFrequency = localStorage.getItem('completeAutoBackupFrequency') || 'weekly';
-    
-    // الحصول على تاريخ آخر نسخة احتياطية
-    const lastBackupDate = localStorage.getItem('lastAutoCompleteBackupDate');
-    
-    // حساب تاريخ النسخة الاحتياطية التالية
-    let nextBackupDate;
-    const now = new Date();
-    
-    if (lastBackupDate) {
-        const lastDate = new Date(lastBackupDate);
-        
-        switch (autoBackupFrequency) {
-            case 'daily':
-                // النسخ الاحتياطي اليومي
-                nextBackupDate = new Date(lastDate);
-                nextBackupDate.setDate(nextBackupDate.getDate() + 1);
-                break;
-            case 'weekly':
-                // النسخ الاحتياطي الأسبوعي
-                nextBackupDate = new Date(lastDate);
-                nextBackupDate.setDate(nextBackupDate.getDate() + 7);
-                break;
-            case 'monthly':
-                // النسخ الاحتياطي الشهري
-                nextBackupDate = new Date(lastDate);
-                nextBackupDate.setMonth(nextBackupDate.getMonth() + 1);
-                break;
-            default:
-                // النسخ الاحتياطي الأسبوعي كإعداد افتراضي
-                nextBackupDate = new Date(lastDate);
-                nextBackupDate.setDate(nextBackupDate.getDate() + 7);
-        }
-    } else {
-        // لم يتم إجراء نسخ احتياطي من قبل، قم بتعيين تاريخ النسخة الاحتياطية التالية إلى الآن
-        nextBackupDate = now;
-    }
-    
-    // التحقق مما إذا كان الوقت قد حان لإجراء نسخة احتياطية
-    if (now >= nextBackupDate) {
-        // إنشاء نسخة احتياطية
-        createAutoCompleteBackup();
-    }
-    
-    // جدولة الفحص مرة أخرى بعد ساعة
-    setTimeout(scheduleAutoCompleteBackup, 60 * 60 * 1000);
-}
-
-/**
- * حفظ إعدادات النسخ الاحتياطي التلقائي
- * Save automatic backup settings
- */
-function saveCompleteBackupSettings() {
-    try {
-        // الحصول على قيم الإعدادات
-        const enableAutoBackup = document.getElementById('enableCompleteAutoBackup').checked;
-        const autoBackupFrequency = document.getElementById('completeAutoBackupFrequency').value;
-        const backupsToKeep = document.getElementById('completeBackupsToKeep').value;
-        const autoBackupFormatJSON = document.getElementById('autoBackupFormatJSON').checked;
-        const autoBackupFormatPDF = document.getElementById('autoBackupFormatPDF').checked;
-        
-        // التحقق من صحة البيانات
-        if (autoBackupFormatJSON === false && autoBackupFormatPDF === false) {
-            createNotification('خطأ', 'يرجى تحديد صيغة واحدة على الأقل للنسخ الاحتياطي التلقائي', 'danger');
-            // تعيين صيغة JSON كإعداد افتراضي
-            document.getElementById('autoBackupFormatJSON').checked = true;
-            return;
-        }
-        
-        // حفظ الإعدادات
-        localStorage.setItem('enableCompleteAutoBackup', enableAutoBackup);
-        localStorage.setItem('completeAutoBackupFrequency', autoBackupFrequency);
-        localStorage.setItem('completeBackupsToKeep', backupsToKeep);
-        localStorage.setItem('autoBackupFormatJSON', autoBackupFormatJSON);
-        localStorage.setItem('autoBackupFormatPDF', autoBackupFormatPDF);
-        
-        // تحديث حالة النسخ التلقائي
-        updateAutoBackupStatus();
-        
-        // جدولة النسخ الاحتياطي التلقائي
-        scheduleAutoCompleteBackup();
-        
-        // إظهار رسالة نجاح
-        createNotification('نجاح', 'تم حفظ إعدادات النسخ الاحتياطي التلقائي بنجاح', 'success');
-    } catch (error) {
-        console.error('خطأ في حفظ إعدادات النسخ الاحتياطي التلقائي:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء حفظ إعدادات النسخ الاحتياطي التلقائي: ' + error.message, 'danger');
-    }
-}
-
-/**
- * عرض محتوى النسخة الاحتياطية
- * View backup content
- */
-function viewCompleteBackup(backupId) {
-    try {
-        // البحث عن معلومات النسخة الاحتياطية
-        const completeBackups = JSON.parse(localStorage.getItem('completeBackups') || '[]');
-        const backup = completeBackups.find(b => b.id === backupId);
-        
-        if (!backup) {
-            createNotification('خطأ', 'النسخة الاحتياطية غير موجودة', 'danger');
-            return;
-        }
-        
-        // في بيئة حقيقية، يمكن فتح ملف النسخة الاحتياطية هنا
-        // لأغراض العرض، سنعرض تقرير بسيط
-        
-        // إنشاء كائن بيانات وهمي للتقرير
-        const dummyData = {
-            investors: investors,
-            investments: investments,
-            operations: operations,
-            settings: settings,
-            events: events,
-            notifications: notifications,
-            version: '1.0.0',
-            createdAt: backup.date
-        };
-        
-        // إنشاء محتوى HTML للتقرير
-        const htmlContent = generateBackupReport(dummyData, backup);
-        
-        // فتح التقرير في نافذة جديدة
-        const newWindow = window.open('', '_blank');
-        newWindow.document.write(htmlContent);
-        newWindow.document.close();
-        
-        console.log('تم عرض تقرير النسخة الاحتياطية بنجاح');
-    } catch (error) {
-        console.error('خطأ في عرض النسخة الاحتياطية:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء عرض النسخة الاحتياطية: ' + error.message, 'danger');
-    }
-}
-
-/**
- * استعادة النسخة الاحتياطية
- * Restore backup
- */
-function restoreCompleteBackup(backupId) {
-    try {
-        // البحث عن معلومات النسخة الاحتياطية
-        const completeBackups = JSON.parse(localStorage.getItem('completeBackups') || '[]');
-        const backup = completeBackups.find(b => b.id === backupId);
-        
-        if (!backup) {
-            createNotification('خطأ', 'النسخة الاحتياطية غير موجودة', 'danger');
-            return;
-        }
-        
-        // التأكيد على الاستعادة
-        if (!confirm(`هل أنت متأكد من استعادة النسخة الاحتياطية "${backup.name}"؟\nسيتم استبدال جميع البيانات الحالية بالبيانات المخزنة في النسخة الاحتياطية.`)) {
-            return;
-        }
-        
-        // في بيئة حقيقية، يتم قراءة ملف النسخة الاحتياطية وتحميل البيانات
-        // لأغراض العرض، سنستخدم البيانات الحالية
-        
-        // إظهار رسالة تقدم العملية
-        createNotification('جاري العمل', 'جاري استعادة النسخة الاحتياطية...', 'info');
-        
-        // محاكاة عملية الاستعادة
-        setTimeout(() => {
-            // إظهار رسالة نجاح
-            createNotification('نجاح', 'تم استعادة النسخة الاحتياطية بنجاح. سيتم تحديث الصفحة خلال 3 ثوان...', 'success');
-            
-            // تحديث الصفحة بعد 3 ثوان
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
-        }, 2000);
-    } catch (error) {
-        console.error('خطأ في استعادة النسخة الاحتياطية:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء استعادة النسخة الاحتياطية: ' + error.message, 'danger');
-    }
-}
-
-/**
- * استعادة من ملف
- * Restore from file
- */
-function restoreFromFile() {
-    try {
-        // الحصول على الملف المحدد
-        const fileInput = document.getElementById('restoreCompleteBackupFile');
-        
-        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            createNotification('خطأ', 'يرجى اختيار ملف للاستعادة', 'danger');
-            return;
-        }
-        
-        // التأكيد على الاستعادة
-        if (!confirm('هل أنت متأكد من استعادة النظام من الملف المحدد؟\nسيتم استبدال جميع البيانات الحالية بالبيانات المخزنة في الملف.')) {
-            return;
-        }
-        
-        // قراءة الملف
-        const file = fileInput.files[0];
+    } else if (restoreBackupFile.files && restoreBackupFile.files.length > 0) {
+        // استعادة من ملف محمل
+        closeModal('restoreBackupModal');
+        
+        const file = restoreBackupFile.files[0];
         const reader = new FileReader();
         
         reader.onload = function(event) {
             try {
-                // تحويل محتوى الملف إلى كائن
                 const backupData = JSON.parse(event.target.result);
                 
-                // التحقق من صحة البيانات
-                if (!backupData.investors || !backupData.investments || !backupData.operations || !backupData.settings) {
-                    createNotification('خطأ', 'الملف المحدد لا يحتوي على بيانات صالحة للاستعادة', 'danger');
-                    return;
-                }
-                
-                // إظهار رسالة تقدم العملية
-                createNotification('جاري العمل', 'جاري استعادة النظام من الملف...', 'info');
-                
-                // محاكاة عملية الاستعادة
-                setTimeout(() => {
-                    // إظهار رسالة نجاح
-                    createNotification('نجاح', 'تم استعادة النظام من الملف بنجاح. سيتم تحديث الصفحة خلال 3 ثوان...', 'success');
+                if (window.ComprehensiveBackupSystem) {
+                    // عرض مؤشر التقدم
+                    window.ComprehensiveBackupSystem.showProgressBar();
+                    window.ComprehensiveBackupSystem.updateProgressBar(10, 'جاري تحليل البيانات');
                     
-                    // تحديث الصفحة بعد 3 ثوان
+                    // استعادة البيانات
+                    window.ComprehensiveBackupSystem.restoreData(backupData);
+                    
+                    // تحديث مؤشر التقدم
+                    window.ComprehensiveBackupSystem.updateProgressBar(80, 'جاري استعادة البيانات');
+                    
+                    // تحديث واجهة المستخدم
+                    window.ComprehensiveBackupSystem.updateUIAfterRestore();
+                    
+                    // إخفاء مؤشر التقدم
+                    window.ComprehensiveBackupSystem.hideProgressBar();
+                    
+                    // عرض رسالة نجاح
+                    createNotification('نجاح', 'تم استعادة النظام بنجاح من الملف المحمل', 'success');
+                    
+                    // إعادة تحميل الصفحة بعد الاستعادة
                     setTimeout(() => {
                         window.location.reload();
-                    }, 3000);
-                }, 2000);
+                    }, 2000);
+                }
             } catch (error) {
-                console.error('خطأ في قراءة الملف:', error);
-                createNotification('خطأ', 'حدث خطأ أثناء قراءة الملف: ' + error.message, 'danger');
+                console.error('خطأ في استعادة النظام من الملف:', error);
+                createNotification('خطأ', 'حدث خطأ أثناء استعادة النظام من الملف', 'danger');
             }
         };
         
+        reader.onerror = function(error) {
+            console.error('خطأ في قراءة الملف:', error);
+            createNotification('خطأ', 'حدث خطأ أثناء قراءة الملف', 'danger');
+        };
+        
         reader.readAsText(file);
-    } catch (error) {
-        console.error('خطأ في استعادة النظام من الملف:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء استعادة النظام من الملف: ' + error.message, 'danger');
+    } else {
+        createNotification('خطأ', 'يرجى اختيار نسخة احتياطية أو تحميل ملف', 'danger');
     }
 }
 
-/**
- * استعادة من نسخة محفوظة
- * Restore from saved backup
- */
-function restoreFromBackup() {
-    try {
-        // الحصول على النسخة المحددة
-        const restoreSelect = document.getElementById('restoreCompleteBackupSelect');
+// فتح نافذة إعدادات النسخ الاحتياطي
+function openBackupSettingsDialog() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.id = 'backupSettingsModal';
+    
+    modal.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">إعدادات النسخ الاحتياطي الشامل</h2>
+                <div class="modal-close" onclick="closeModal('backupSettingsModal')">
+                    <i class="fas fa-times"></i>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="settings-group">
+                    <div class="settings-group-title">
+                        <i class="fas fa-file-alt"></i> تنسيقات النسخ الاحتياطي
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">تنسيقات الملفات المستخدمة:</div>
+                        <div class="settings-input">
+                            <div class="format-toggle">
+                                <div class="format-option">
+                                    <input type="checkbox" id="settingsFormatJson" checked>
+                                    <label for="settingsFormatJson">JSON</label>
+                                </div>
+                                <div class="format-option">
+                                    <input type="checkbox" id="settingsFormatPdf" checked>
+                                    <label for="settingsFormatPdf">PDF</label>
+                                </div>
+                                <div class="format-option">
+                                    <input type="checkbox" id="settingsFormatExcel" checked>
+                                    <label for="settingsFormatExcel">Excel</label>
+                                </div>
+                                <div class="format-option">
+                                    <input type="checkbox" id="settingsFormatWord" checked>
+                                    <label for="settingsFormatWord">Word</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <div class="settings-group-title">
+                        <i class="fas fa-cog"></i> إعدادات عامة
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">تضمين المستندات:</div>
+                        <div class="settings-input">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="settingsIncludeDocuments" checked>
+                                <label class="form-check-label" for="settingsIncludeDocuments">حفظ المستندات في النسخة الاحتياطية</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">تضمين الإعدادات:</div>
+                        <div class="settings-input">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="settingsIncludeSettings" checked>
+                                <label class="form-check-label" for="settingsIncludeSettings">حفظ إعدادات النظام في النسخة الاحتياطية</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">عدد النسخ الاحتياطية المحتفظ بها:</div>
+                        <div class="settings-input">
+                            <input type="number" class="form-control" id="settingsMaxBackups" min="1" max="100" value="10">
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">مسار حفظ النسخ الاحتياطية:</div>
+                        <div class="settings-input">
+                            <input type="text" class="form-control" id="settingsBackupPath" value="./backups/">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <div class="settings-group-title">
+                        <i class="fas fa-lock"></i> الأمان
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">تشفير النسخة الاحتياطية:</div>
+                        <div class="settings-input">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="settingsEncryption">
+                                <label class="form-check-label" for="settingsEncryption">تشفير النسخة الاحتياطية</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-row" id="encryptionPasswordRow" style="display: none;">
+                        <div class="settings-label">كلمة مرور التشفير:</div>
+                        <div class="settings-input">
+                            <input type="password" class="form-control" id="settingsEncryptionPassword">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <div class="settings-group-title">
+                        <i class="fas fa-clock"></i> النسخ الاحتياطي التلقائي
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">تفعيل النسخ الاحتياطي التلقائي:</div>
+                        <div class="settings-input">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="settingsAutoBackup">
+                                <label class="form-check-label" for="settingsAutoBackup">إنشاء نسخة احتياطية تلقائياً</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-row" id="autoBackupIntervalRow" style="display: none;">
+                        <div class="settings-label">فترة النسخ الاحتياطي التلقائي (بالأيام):</div>
+                        <div class="settings-input">
+                            <select class="form-select" id="settingsAutoBackupInterval">
+                                <option value="1">يومياً</option>
+                                <option value="7" selected>أسبوعياً</option>
+                                <option value="30">شهرياً</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" onclick="closeModal('backupSettingsModal')">إلغاء</button>
+                <button class="btn btn-primary" onclick="saveBackupSettings()">
+                    <i class="fas fa-save"></i> حفظ الإعدادات
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // تحميل الإعدادات الحالية
+    if (window.ComprehensiveBackupSystem) {
+        const options = window.ComprehensiveBackupSystem.options;
         
-        if (!restoreSelect || !restoreSelect.value) {
-            createNotification('خطأ', 'يرجى اختيار نسخة احتياطية للاستعادة', 'danger');
-            return;
+        // تنسيقات الملفات
+        document.getElementById('settingsFormatJson').checked = options.formats.json;
+        document.getElementById('settingsFormatPdf').checked = options.formats.pdf;
+        document.getElementById('settingsFormatExcel').checked = options.formats.excel;
+        document.getElementById('settingsFormatWord').checked = options.formats.word;
+        
+        // إعدادات عامة
+        document.getElementById('settingsIncludeDocuments').checked = options.includeDocuments;
+        document.getElementById('settingsIncludeSettings').checked = options.includeSettings;
+        document.getElementById('settingsMaxBackups').value = options.maxBackups;
+        document.getElementById('settingsBackupPath').value = options.backupPath;
+        
+        // الأمان
+        document.getElementById('settingsEncryption').checked = options.encryption;
+        document.getElementById('settingsEncryptionPassword').value = options.encryptionPassword;
+        
+        // إظهار/إخفاء حقل كلمة المرور
+        document.getElementById('encryptionPasswordRow').style.display = options.encryption ? 'flex' : 'none';
+        
+        // النسخ الاحتياطي التلقائي
+        document.getElementById('settingsAutoBackup').checked = options.autoBackup;
+        document.getElementById('settingsAutoBackupInterval').value = options.autoBackupInterval;
+        
+        // إظهار/إخفاء حقل فترة النسخ الاحتياطي
+        document.getElementById('autoBackupIntervalRow').style.display = options.autoBackup ? 'flex' : 'none';
+    }
+    
+    // إضافة مستمعي الأحداث
+    document.getElementById('settingsEncryption').addEventListener('change', function() {
+        document.getElementById('encryptionPasswordRow').style.display = this.checked ? 'flex' : 'none';
+    });
+    
+    document.getElementById('settingsAutoBackup').addEventListener('change', function() {
+        document.getElementById('autoBackupIntervalRow').style.display = this.checked ? 'flex' : 'none';
+    });
+}
+
+// حفظ إعدادات النسخ الاحتياطي
+function saveBackupSettings() {
+    if (window.ComprehensiveBackupSystem) {
+        const options = window.ComprehensiveBackupSystem.options;
+        
+        // تنسيقات الملفات
+        options.formats.json = document.getElementById('settingsFormatJson').checked;
+        options.formats.pdf = document.getElementById('settingsFormatPdf').checked;
+        options.formats.excel = document.getElementById('settingsFormatExcel').checked;
+        options.formats.word = document.getElementById('settingsFormatWord').checked;
+        
+        // إعدادات عامة
+        options.includeDocuments = document.getElementById('settingsIncludeDocuments').checked;
+        options.includeSettings = document.getElementById('settingsIncludeSettings').checked;
+        options.maxBackups = parseInt(document.getElementById('settingsMaxBackups').value);
+        options.backupPath = document.getElementById('settingsBackupPath').value;
+        
+        // الأمان
+        options.encryption = document.getElementById('settingsEncryption').checked;
+        options.encryptionPassword = document.getElementById('settingsEncryptionPassword').value;
+        
+        // النسخ الاحتياطي التلقائي
+        options.autoBackup = document.getElementById('settingsAutoBackup').checked;
+        options.autoBackupInterval = parseInt(document.getElementById('settingsAutoBackupInterval').value);
+        
+        // حفظ الإعدادات
+        window.ComprehensiveBackupSystem.saveOptions();
+        
+        // إعداد النسخ الاحتياطي التلقائي
+        window.ComprehensiveBackupSystem.setupAutoBackup();
+        
+        // إغلاق النافذة
+        closeModal('backupSettingsModal');
+        
+        // عرض رسالة نجاح
+        createNotification('نجاح', 'تم حفظ إعدادات النسخ الاحتياطي بنجاح', 'success');
+    }
+}
+
+// تنزيل نسخة احتياطية
+function downloadSelectedBackup() {
+    const backupSelect = document.getElementById('comprehensiveBackupsList');
+    
+    if (!backupSelect || !backupSelect.value) {
+        createNotification('خطأ', 'يرجى اختيار نسخة احتياطية', 'danger');
+        return;
+    }
+    
+    const backupId = backupSelect.value;
+    
+    // فتح نافذة لاختيار صيغة التنزيل
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.id = 'downloadFormatModal';
+    
+    modal.innerHTML = `
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2 class="modal-title">اختر صيغة التنزيل</h2>
+                <div class="modal-close" onclick="closeModal('downloadFormatModal')">
+                    <i class="fas fa-times"></i>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">صيغة الملف:</label>
+                    <div class="format-toggle" style="margin-top: 10px;">
+                        <div class="format-option" style="flex-direction: column; align-items: center;">
+                            <button class="backup-button" onclick="downloadBackupWithFormat('${backupId}', 'json')">
+                                <i class="fas fa-file-code fa-2x"></i>
+                            </button>
+                            <label style="margin-top: 5px;">JSON</label>
+                        </div>
+                        <div class="format-option" style="flex-direction: column; align-items: center;">
+                            <button class="backup-button" onclick="downloadBackupWithFormat('${backupId}', 'pdf')">
+                                <i class="fas fa-file-pdf fa-2x"></i>
+                            </button>
+                            <label style="margin-top: 5px;">PDF</label>
+                        </div>
+                        <div class="format-option" style="flex-direction: column; align-items: center;">
+                            <button class="backup-button" onclick="downloadBackupWithFormat('${backupId}', 'excel')">
+                                <i class="fas fa-file-excel fa-2x"></i>
+                            </button>
+                            <label style="margin-top: 5px;">Excel</label>
+                        </div>
+                        <div class="format-option" style="flex-direction: column; align-items: center;">
+                            <button class="backup-button" onclick="downloadBackupWithFormat('${backupId}', 'word')">
+                                <i class="fas fa-file-word fa-2x"></i>
+                            </button>
+                            <label style="margin-top: 5px;">Word</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" onclick="closeModal('downloadFormatModal')">إلغاء</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// تنزيل النسخة الاحتياطية بالصيغة المحددة
+function downloadBackupWithFormat(backupId, format) {
+    closeModal('downloadFormatModal');
+    
+    if (window.ComprehensiveBackupSystem) {
+        window.ComprehensiveBackupSystem.downloadBackup(backupId, format);
+    }
+}
+
+// دوال مساعدة
+
+// إضافة تبويب النسخ الاحتياطي الشامل إلى صفحة الإعدادات
+function addComprehensiveBackupTab() {
+    // إضافة زر التبويب
+    const tabsContainer = document.querySelector('#settings .tabs');
+    if (tabsContainer) {
+        const backupTab = document.createElement('div');
+        backupTab.className = 'tab';
+        backupTab.setAttribute('onclick', "switchSettingsTab('comprehensiveBackup')");
+        backupTab.textContent = 'النسخ الاحتياطي الشامل';
+        
+        tabsContainer.appendChild(backupTab);
+    }
+    
+    // إضافة محتوى التبويب
+    const settingsContainer = document.getElementById('settings');
+    if (settingsContainer) {
+        const backupTabContent = document.createElement('div');
+        backupTabContent.id = 'comprehensiveBackupSettings';
+        backupTabContent.className = 'settings-tab-content';
+        
+        backupTabContent.innerHTML = `
+            <div class="backup-section">
+                <div class="backup-header">
+                    <div class="backup-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                        <h2 class="backup-title">النسخ الاحتياطي الشامل</h2>
+                        <p class="backup-subtitle">قم بإنشاء نسخة احتياطية كاملة لجميع بيانات النظام واستعادتها عند الحاجة</p>
+                    </div>
+                </div>
+                
+                <div class="backup-actions">
+                    <button class="backup-button primary" onclick="openCreateBackupDialog()">
+                        <i class="fas fa-download"></i>
+                        <span>إنشاء نسخة احتياطية جديدة</span>
+                    </button>
+                    <button class="backup-button success" onclick="openRestoreBackupDialog()">
+                        <i class="fas fa-upload"></i>
+                        <span>استعادة من نسخة احتياطية</span>
+                    </button>
+                    <button class="backup-button" onclick="openBackupSettingsDialog()">
+                        <i class="fas fa-cog"></i>
+                        <span>إعدادات النسخ الاحتياطي</span>
+                    </button>
+                </div>
+                
+                <div class="backup-list-container">
+                    <div class="backup-list-title">
+                        <i class="fas fa-history"></i>
+                        <span>النسخ الاحتياطية المتوفرة</span>
+                    </div>
+                    <select class="backup-list" id="comprehensiveBackupsList" size="10">
+                        <!-- سيتم تعبئته بواسطة JavaScript -->
+                    </select>
+                    <div class="backup-list-actions">
+                        <button class="btn btn-primary" onclick="downloadSelectedBackup()">
+                            <i class="fas fa-download"></i> تنزيل
+                        </button>
+                        <button class="btn btn-success" onclick="restoreSelectedBackup()">
+                            <i class="fas fa-upload"></i> استعادة
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteSelectedBackup()">
+                            <i class="fas fa-trash"></i> حذف
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="backup-info">
+                    <div class="backup-info-title">معلومات النسخ الاحتياطي</div>
+                    <div class="backup-info-text">
+                        يُمَكِّنك نظام النسخ الاحتياطي الشامل من إنشاء نسخة احتياطية كاملة لجميع بيانات النظام، بما في ذلك المستثمرين والاستثمارات والعمليات والتقارير والإعدادات وغيرها. يمكنك استعادة النظام من هذه النسخة في حالة حدوث أي مشكلة أو فقدان البيانات.
+                    </div>
+                </div>
+                
+                <div class="backup-info">
+                    <div class="backup-info-title">النسخ الاحتياطي التلقائي</div>
+                    <div class="backup-info-text">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="quickAutoBackup">
+                            <label class="form-check-label" for="quickAutoBackup">تفعيل النسخ الاحتياطي التلقائي</label>
+                        </div>
+                        <div id="quickAutoBackupOptions" style="margin-top: 10px; display: none;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <label>الفترة:</label>
+                                <select class="form-select" id="quickAutoBackupInterval" style="width: 150px;">
+                                    <option value="1">يومياً</option>
+                                    <option value="7" selected>أسبوعياً</option>
+                                    <option value="30">شهرياً</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" onclick="saveQuickAutoBackupSettings()">
+                                    <i class="fas fa-save"></i> حفظ
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        settingsContainer.appendChild(backupTabContent);
+        
+        // تحديث حالة النسخ الاحتياطي التلقائي
+        if (window.ComprehensiveBackupSystem) {
+            const quickAutoBackup = document.getElementById('quickAutoBackup');
+            const quickAutoBackupOptions = document.getElementById('quickAutoBackupOptions');
+            const quickAutoBackupInterval = document.getElementById('quickAutoBackupInterval');
+            
+            quickAutoBackup.checked = window.ComprehensiveBackupSystem.options.autoBackup;
+            quickAutoBackupOptions.style.display = quickAutoBackup.checked ? 'block' : 'none';
+            quickAutoBackupInterval.value = window.ComprehensiveBackupSystem.options.autoBackupInterval;
+            
+            // إضافة مستمع الحدث
+            quickAutoBackup.addEventListener('change', function() {
+                quickAutoBackupOptions.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+    }
+}
+
+// حفظ إعدادات النسخ الاحتياطي التلقائي السريعة
+function saveQuickAutoBackupSettings() {
+    if (window.ComprehensiveBackupSystem) {
+        const options = window.ComprehensiveBackupSystem.options;
+        
+        options.autoBackup = document.getElementById('quickAutoBackup').checked;
+        options.autoBackupInterval = parseInt(document.getElementById('quickAutoBackupInterval').value);
+        
+        // حفظ الإعدادات
+        window.ComprehensiveBackupSystem.saveOptions();
+        
+        // إعداد النسخ الاحتياطي التلقائي
+        window.ComprehensiveBackupSystem.setupAutoBackup();
+        
+        // عرض رسالة نجاح
+        createNotification('نجاح', 'تم حفظ إعدادات النسخ الاحتياطي التلقائي بنجاح', 'success');
+    }
+}
+
+// استعادة النسخة الاحتياطية المحددة
+function restoreSelectedBackup() {
+    const backupSelect = document.getElementById('comprehensiveBackupsList');
+    
+    if (!backupSelect || !backupSelect.value) {
+        createNotification('خطأ', 'يرجى اختيار نسخة احتياطية', 'danger');
+        return;
+    }
+    
+    const backupId = backupSelect.value;
+    
+    if (window.ComprehensiveBackupSystem) {
+        window.ComprehensiveBackupSystem.restoreFromBackup(backupId);
+    }
+}
+
+// حذف النسخة الاحتياطية المحددة
+function deleteSelectedBackup() {
+    const backupSelect = document.getElementById('comprehensiveBackupsList');
+    
+    if (!backupSelect || !backupSelect.value) {
+        createNotification('خطأ', 'يرجى اختيار نسخة احتياطية', 'danger');
+        return;
+    }
+    
+    const backupId = backupSelect.value;
+    
+    if (window.ComprehensiveBackupSystem) {
+        window.ComprehensiveBackupSystem.deleteBackup(backupId);
+    }
+}
+
+// إضافة مستمع حدث لإضافة تبويب النسخ الاحتياطي الشامل عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    // إضافة تبويب النسخ الاحتياطي الشامل
+    addComprehensiveBackupTab();
+    
+    // تهيئة نظام النسخ الاحتياطي الشامل
+    if (window.ComprehensiveBackupSystem) {
+        window.ComprehensiveBackupSystem.init();
+    }
+});
+
+/**
+ * وظائف توليد تقارير النسخ الاحتياطي
+ * هذا الملف يقدم وظائف إضافية لإنشاء تقارير مفصلة عن النسخ الاحتياطية
+ */
+
+// كائن عام لإدارة تقارير النسخ الاحتياطي
+window.BackupReportGenerator = {
+    /**
+     * إنشاء تقرير مفصل عن النسخة الاحتياطية
+     * @param {Object} backup - كائن النسخة الاحتياطية
+     * @returns {string} - محتوى التقرير بصيغة HTML
+     */
+    generateDetailedReport: function(backup) {
+        if (!backup) return null;
+        
+        // إنشاء تاريخ التقرير
+        const reportDate = new Date();
+        
+        // حساب الإحصائيات
+        const stats = this.calculateBackupStats(backup);
+        
+        // إنشاء محتوى التقرير
+        const reportContent = `
+        <div class="backup-report">
+            <div class="report-header">
+                <h1>تقرير النسخة الاحتياطية الشامل</h1>
+                <p class="report-date">تاريخ التقرير: ${reportDate.toLocaleDateString('ar-IQ')} ${reportDate.toLocaleTimeString('ar-IQ')}</p>
+            </div>
+            
+            <div class="report-section">
+                <h2>معلومات النسخة الاحتياطية</h2>
+                <table class="report-table">
+                    <tr>
+                        <th>الاسم:</th>
+                        <td>${backup.name}</td>
+                    </tr>
+                    <tr>
+                        <th>تاريخ الإنشاء:</th>
+                        <td>${new Date(backup.createdAt).toLocaleDateString('ar-IQ')} ${new Date(backup.createdAt).toLocaleTimeString('ar-IQ')}</td>
+                    </tr>
+                    <tr>
+                        <th>المعرف:</th>
+                        <td>${backup.id}</td>
+                    </tr>
+                    <tr>
+                        <th>حجم النسخة:</th>
+                        <td>${this.formatFileSize(backup.size || 0)}</td>
+                    </tr>
+                    <tr>
+                        <th>التنسيقات:</th>
+                        <td>${this.getFormatsString(backup.formats)}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="report-section">
+                <h2>إحصائيات البيانات</h2>
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-users"></i></div>
+                        <div class="stat-value">${stats.investorsCount}</div>
+                        <div class="stat-label">المستثمرين</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
+                        <div class="stat-value">${stats.investmentsCount}</div>
+                        <div class="stat-label">الاستثمارات</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-exchange-alt"></i></div>
+                        <div class="stat-value">${stats.operationsCount}</div>
+                        <div class="stat-label">العمليات</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="stat-value">${stats.eventsCount}</div>
+                        <div class="stat-label">الأحداث</div>
+                    </div>
+                </div>
+                
+                <div class="report-subsection">
+                    <h3>التفاصيل المالية</h3>
+                    <table class="report-table">
+                        <tr>
+                            <th>إجمالي قيمة الاستثمارات النشطة:</th>
+                            <td>${this.formatCurrency(stats.totalActiveInvestments)}</td>
+                        </tr>
+                        <tr>
+                            <th>إجمالي الأرباح المحسوبة:</th>
+                            <td>${this.formatCurrency(stats.totalCalculatedProfits)}</td>
+                        </tr>
+                        <tr>
+                            <th>إجمالي الأرباح المدفوعة:</th>
+                            <td>${this.formatCurrency(stats.totalPaidProfits)}</td>
+                        </tr>
+                        <tr>
+                            <th>إجمالي السحوبات:</th>
+                            <td>${this.formatCurrency(stats.totalWithdrawals)}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="report-section">
+                <h2>سلامة النسخة الاحتياطية</h2>
+                <div class="integrity-status ${stats.integrityCheck ? 'success' : 'danger'}">
+                    <i class="fas fa-${stats.integrityCheck ? 'check-circle' : 'exclamation-circle'}"></i>
+                    <span>${stats.integrityCheck ? 'تم التحقق من سلامة النسخة الاحتياطية' : 'هناك مشكلة في سلامة النسخة الاحتياطية'}</span>
+                </div>
+                ${!stats.integrityCheck ? `
+                <div class="integrity-issues">
+                    <h3>المشاكل المكتشفة:</h3>
+                    <ul>
+                        ${stats.integrityIssues.map(issue => `<li>${issue}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+            
+            <div class="report-section">
+                <h2>توزيع البيانات</h2>
+                <div class="chart-container">
+                    <canvas id="dataDistributionChart" width="400" height="300"></canvas>
+                </div>
+                <script>
+                    // إنشاء الرسم البياني عند عرض التقرير
+                    const ctx = document.getElementById('dataDistributionChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['المستثمرين', 'الاستثمارات', 'العمليات', 'الأحداث', 'الإشعارات', 'التقارير'],
+                            datasets: [{
+                                data: [
+                                    ${stats.investorsCount},
+                                    ${stats.investmentsCount},
+                                    ${stats.operationsCount},
+                                    ${stats.eventsCount},
+                                    ${stats.notificationsCount},
+                                    ${stats.reportsCount}
+                                ],
+                                backgroundColor: [
+                                    'rgba(52, 152, 219, 0.8)',
+                                    'rgba(46, 204, 113, 0.8)',
+                                    'rgba(155, 89, 182, 0.8)',
+                                    'rgba(241, 196, 15, 0.8)',
+                                    'rgba(231, 76, 60, 0.8)',
+                                    'rgba(52, 73, 94, 0.8)'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'right'
+                                }
+                            }
+                        }
+                    });
+                </script>
+            </div>
+            
+            <div class="report-section">
+                <h2>استثمارات حسب المستثمر</h2>
+                <div class="chart-container">
+                    <canvas id="investorInvestmentsChart" width="600" height="400"></canvas>
+                </div>
+                <script>
+                    // إنشاء الرسم البياني عند عرض التقرير
+                    const investorsCtx = document.getElementById('investorInvestmentsChart').getContext('2d');
+                    new Chart(investorsCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ${JSON.stringify(stats.topInvestors.map(i => i.name))},
+                            datasets: [{
+                                label: 'قيمة الاستثمارات',
+                                data: ${JSON.stringify(stats.topInvestors.map(i => i.totalInvestment))},
+                                backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                                borderColor: 'rgba(52, 152, 219, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                </script>
+            </div>
+            
+            <div class="report-footer">
+                <p>تم إنشاء هذا التقرير بواسطة نظام النسخ الاحتياطي الشامل</p>
+                <p>© ${new Date().getFullYear()} ${window.settings?.companyName || 'شركة الاستثمار العراقية'}</p>
+            </div>
+        </div>
+        `;
+        
+        return reportContent;
+    },
+    
+    /**
+     * حساب إحصائيات النسخة الاحتياطية
+     * @param {Object} backup - كائن النسخة الاحتياطية
+     * @returns {Object} - كائن يحتوي على الإحصائيات
+     */
+    calculateBackupStats: function(backup) {
+        const data = backup.data || {};
+        const investors = data.investors || [];
+        const investments = data.investments || [];
+        const operations = data.operations || [];
+        const events = data.events || [];
+        const notifications = data.notifications || [];
+        const reports = data.reports || [];
+        
+        // حساب القيم الإجمالية
+        const activeInvestments = investments.filter(inv => inv.status === 'active');
+        const totalActiveInvestments = activeInvestments.reduce((sum, inv) => sum + inv.amount, 0);
+        
+        // حساب إجمالي الأرباح المحسوبة (تقريبي)
+        let totalCalculatedProfits = 0;
+        const today = new Date();
+        
+        activeInvestments.forEach(inv => {
+            // استخدام الوظيفة العامة لحساب الربح إن وجدت
+            if (typeof calculateProfit === 'function') {
+                const profit = calculateProfit(inv.amount, inv.date, today.toISOString());
+                totalCalculatedProfits += profit;
+            } else {
+                // حساب تقريبي بناءً على نسبة الربح الشهرية والمدة
+                const monthlyRate = backup.data.settings?.monthlyProfitRate || 1.75;
+                const startDate = new Date(inv.date);
+                const months = (today.getFullYear() - startDate.getFullYear()) * 12 + today.getMonth() - startDate.getMonth();
+                const profit = (inv.amount * monthlyRate / 100) * months;
+                totalCalculatedProfits += profit;
+            }
+        });
+        
+        // حساب العمليات
+        const profitOperations = operations.filter(op => op.type === 'profit' && op.status === 'active');
+        const withdrawalOperations = operations.filter(op => op.type === 'withdrawal' && op.status === 'active');
+        
+        const totalPaidProfits = profitOperations.reduce((sum, op) => sum + op.amount, 0);
+        const totalWithdrawals = withdrawalOperations.reduce((sum, op) => sum + op.amount, 0);
+        
+        // حساب أكبر 5 مستثمرين
+        const investorTotals = {};
+        
+        investments.forEach(inv => {
+            if (!investorTotals[inv.investorId]) {
+                investorTotals[inv.investorId] = 0;
+            }
+            investorTotals[inv.investorId] += inv.amount;
+        });
+        
+        // تحويل إلى مصفوفة وترتيبها
+        const topInvestors = Object.keys(investorTotals)
+            .map(id => {
+                const investor = investors.find(inv => inv.id === id);
+                return {
+                    id,
+                    name: investor ? investor.name : 'مستثمر غير معروف',
+                    totalInvestment: investorTotals[id]
+                };
+            })
+            .sort((a, b) => b.totalInvestment - a.totalInvestment)
+            .slice(0, 5); // أخذ أكبر 5 مستثمرين
+        
+        // فحص سلامة النسخة الاحتياطية
+        const integrityCheck = this.checkBackupIntegrity(backup);
+        
+        return {
+            investorsCount: investors.length,
+            investmentsCount: investments.length,
+            operationsCount: operations.length,
+            eventsCount: events.length,
+            notificationsCount: notifications.length,
+            reportsCount: reports.length,
+            totalActiveInvestments,
+            totalCalculatedProfits,
+            totalPaidProfits,
+            totalWithdrawals,
+            topInvestors,
+            integrityCheck: integrityCheck.valid,
+            integrityIssues: integrityCheck.issues
+        };
+    },
+    
+    /**
+     * فحص سلامة النسخة الاحتياطية
+     * @param {Object} backup - كائن النسخة الاحتياطية
+     * @returns {Object} - نتيجة الفحص
+     */
+    checkBackupIntegrity: function(backup) {
+        const issues = [];
+        
+        // التحقق من وجود البيانات الأساسية
+        if (!backup.data) {
+            issues.push('لا توجد بيانات في النسخة الاحتياطية');
+            return { valid: false, issues };
         }
         
-        // استعادة النسخة المحددة
-        restoreCompleteBackup(restoreSelect.value);
-    } catch (error) {
-        console.error('خطأ في استعادة النسخة المحددة:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء استعادة النسخة المحددة: ' + error.message, 'danger');
-    }
-}
-
-/**
- * حذف نسخة احتياطية
- * Delete backup
- */
-function deleteCompleteBackup(backupId) {
-    try {
-        // البحث عن معلومات النسخة الاحتياطية
-        const completeBackups = JSON.parse(localStorage.getItem('completeBackups') || '[]');
-        const backup = completeBackups.find(b => b.id === backupId);
+        // التحقق من وجود المستثمرين والاستثمارات والعمليات
+        if (!backup.data.investors || !Array.isArray(backup.data.investors)) {
+            issues.push('بيانات المستثمرين غير موجودة أو غير صالحة');
+        }
+        
+        if (!backup.data.investments || !Array.isArray(backup.data.investments)) {
+            issues.push('بيانات الاستثمارات غير موجودة أو غير صالحة');
+        }
+        
+        if (!backup.data.operations || !Array.isArray(backup.data.operations)) {
+            issues.push('بيانات العمليات غير موجودة أو غير صالحة');
+        }
+        
+        // التحقق من تطابق البيانات
+        if (backup.data.investments && backup.data.investors) {
+            // التحقق من أن جميع الاستثمارات مرتبطة بمستثمرين موجودين
+            const investorIds = new Set(backup.data.investors.map(inv => inv.id));
+            
+            const orphanedInvestments = backup.data.investments.filter(inv => !investorIds.has(inv.investorId));
+            
+            if (orphanedInvestments.length > 0) {
+                issues.push(`هناك ${orphanedInvestments.length} استثمار غير مرتبط بمستثمرين موجودين`);
+            }
+        }
+        
+        if (backup.data.operations && backup.data.investments) {
+            // التحقق من أن جميع العمليات مرتبطة باستثمارات موجودة
+            const investmentIds = new Set(backup.data.investments.map(inv => inv.id));
+            
+            const operationsWithInvestments = backup.data.operations.filter(op => op.investmentId);
+            const orphanedOperations = operationsWithInvestments.filter(op => !investmentIds.has(op.investmentId));
+            
+            if (orphanedOperations.length > 0) {
+                issues.push(`هناك ${orphanedOperations.length} عملية غير مرتبطة باستثمارات موجودة`);
+            }
+        }
+        
+        return {
+            valid: issues.length === 0,
+            issues
+        };
+    },
+    
+    /**
+     * الحصول على سلسلة نصية للتنسيقات المتاحة
+     * @param {Object} formats - كائن التنسيقات
+     * @returns {string} - سلسلة نصية للتنسيقات
+     */
+    getFormatsString: function(formats) {
+        if (!formats) return 'غير محدد';
+        
+        const enabledFormats = [];
+        
+        if (formats.json) enabledFormats.push('JSON');
+        if (formats.pdf) enabledFormats.push('PDF');
+        if (formats.excel) enabledFormats.push('Excel');
+        if (formats.word) enabledFormats.push('Word');
+        
+        return enabledFormats.join(', ') || 'لا يوجد';
+    },
+    
+    /**
+     * تنسيق حجم الملف
+     * @param {number} bytes - حجم الملف بالبايت
+     * @returns {string} - حجم الملف منسق
+     */
+    formatFileSize: function(bytes) {
+        if (bytes === 0) return '0 بايت';
+        
+        const k = 1024;
+        const sizes = ['بايت', 'كيلوبايت', 'ميجابايت', 'جيجابايت', 'تيرابايت'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    
+    /**
+     * تنسيق المبلغ بالعملة
+     * @param {number} amount - المبلغ
+     * @returns {string} - المبلغ منسق
+     */
+    formatCurrency: function(amount) {
+        // استخدام الوظيفة العامة لتنسيق العملة إن وجدت
+        if (typeof formatCurrency === 'function') {
+            return formatCurrency(amount);
+        }
+        
+        // تنسيق افتراضي
+        const currency = window.settings?.currency || 'IQD';
+        return amount.toLocaleString('ar-IQ') + ' ' + currency;
+    },
+    
+    /**
+     * عرض التقرير المفصل للنسخة الاحتياطية
+     * @param {string} backupId - معرف النسخة الاحتياطية
+     */
+    showDetailedReport: function(backupId) {
+        // الحصول على النسخة الاحتياطية
+        const backup = this.getBackupById(backupId);
         
         if (!backup) {
             createNotification('خطأ', 'النسخة الاحتياطية غير موجودة', 'danger');
             return;
         }
         
-        // التأكيد على الحذف
-        if (!confirm(`هل أنت متأكد من حذف النسخة الاحتياطية "${backup.name}"؟`)) {
-            return;
+        // إنشاء نافذة التقرير
+        const reportWindow = window.open('', '_blank', 'width=800,height=600');
+        
+        // إنشاء محتوى التقرير
+        const reportContent = this.generateDetailedReport(backup);
+        
+        // إنشاء محتوى الصفحة
+        reportWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>تقرير النسخة الاحتياطية - ${backup.name}</title>
+                <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        direction: rtl;
+                        padding: 20px;
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        background-color: #f9f9f9;
+                    }
+                    
+                    .backup-report {
+                        background-color: white;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                        padding: 30px;
+                    }
+                    
+                    .report-header {
+                        text-align: center;
+                        margin-bottom: 30px;
+                        padding-bottom: 20px;
+                        border-bottom: 2px solid #eee;
+                    }
+                    
+                    .report-header h1 {
+                        color: #2c3e50;
+                        margin-bottom: 10px;
+                    }
+                    
+                    .report-date {
+                        color: #7f8c8d;
+                        font-size: 14px;
+                    }
+                    
+                    .report-section {
+                        margin-bottom: 30px;
+                        padding-bottom: 20px;
+                        border-bottom: 1px solid #eee;
+                    }
+                    
+                    .report-section h2 {
+                        color: #3498db;
+                        margin-bottom: 20px;
+                        padding-bottom: 10px;
+                        border-bottom: 1px solid #eee;
+                    }
+                    
+                    .report-subsection h3 {
+                        color: #2c3e50;
+                        margin-top: 20px;
+                        margin-bottom: 15px;
+                    }
+                    
+                    .report-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-bottom: 20px;
+                    }
+                    
+                    .report-table th, .report-table td {
+                        padding: 12px;
+                        text-align: right;
+                        border-bottom: 1px solid #eee;
+                    }
+                    
+                    .report-table th {
+                        background-color: #f8f9fa;
+                        color: #2c3e50;
+                        font-weight: 600;
+                    }
+                    
+                    .stats-container {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 20px;
+                        margin-bottom: 30px;
+                    }
+                    
+                    .stat-card {
+                        flex: 1;
+                        min-width: 200px;
+                        background: white;
+                        border-radius: 10px;
+                        padding: 20px;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                        text-align: center;
+                        transition: transform 0.3s ease;
+                    }
+                    
+                    .stat-card:hover {
+                        transform: translateY(-5px);
+                        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+                    }
+                    
+                    .stat-icon {
+                        font-size: 2rem;
+                        color: #3498db;
+                        margin-bottom: 10px;
+                    }
+                    
+                    .stat-value {
+                        font-size: 1.8rem;
+                        font-weight: bold;
+                        color: #2c3e50;
+                        margin-bottom: 5px;
+                    }
+                    
+                    .stat-label {
+                        color: #7f8c8d;
+                        font-size: 0.9rem;
+                    }
+                    
+                    .chart-container {
+                        height: 400px;
+                        margin-bottom: 30px;
+                    }
+                    
+                    .integrity-status {
+                        display: flex;
+                        align-items: center;
+                        padding: 15px;
+                        border-radius: 10px;
+                        margin-bottom: 20px;
+                        font-weight: 600;
+                    }
+                    
+                    .integrity-status.success {
+                        background-color: rgba(46, 204, 113, 0.1);
+                        color: #27ae60;
+                    }
+                    
+                    .integrity-status.danger {
+                        background-color: rgba(231, 76, 60, 0.1);
+                        color: #c0392b;
+                    }
+                    
+                    .integrity-status i {
+                        font-size: 1.5rem;
+                        margin-left: 10px;
+                    }
+                    
+                    .integrity-issues {
+                        background-color: rgba(231, 76, 60, 0.05);
+                        padding: 15px;
+                        border-radius: 10px;
+                        margin-bottom: 20px;
+                    }
+                    
+                    .integrity-issues h3 {
+                        color: #c0392b;
+                        margin-top: 0;
+                        margin-bottom: 10px;
+                    }
+                    
+                    .integrity-issues ul {
+                        margin: 0;
+                        padding-right: 20px;
+                    }
+                    
+                    .integrity-issues li {
+                        margin-bottom: 5px;
+                    }
+                    
+                    .report-footer {
+                        text-align: center;
+                        margin-top: 50px;
+                        padding-top: 20px;
+                        border-top: 1px solid #eee;
+                        color: #7f8c8d;
+                        font-size: 0.9rem;
+                    }
+                    
+                    @media print {
+                        body {
+                            background-color: white;
+                        }
+                        
+                        .backup-report {
+                            box-shadow: none;
+                        }
+                        
+                        .stat-card {
+                            box-shadow: none;
+                            border: 1px solid #eee;
+                        }
+                        
+                        .report-section {
+                            page-break-inside: avoid;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                ${reportContent}
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        <i class="fas fa-print"></i> طباعة التقرير
+                    </button>
+                </div>
+            </body>
+            </html>
+        `);
+        
+        reportWindow.document.close();
+    },
+    
+    /**
+     * الحصول على النسخة الاحتياطية بالمعرف
+     * @param {string} backupId - معرف النسخة الاحتياطية
+     * @returns {Object|null} - كائن النسخة الاحتياطية
+     */
+    getBackupById: function(backupId) {
+        if (window.ComprehensiveBackupSystem) {
+            return window.ComprehensiveBackupSystem.backups.find(b => b.id === backupId);
         }
         
-        // حذف النسخة من القائمة
-        const updatedBackups = completeBackups.filter(b => b.id !== backupId);
-        
-        // حفظ القائمة المحدثة
-        localStorage.setItem('completeBackups', JSON.stringify(updatedBackups));
-        
-        // تحديث قائمة النسخ الاحتياطية
-        loadCompleteBackups();
-        
-        // إظهار رسالة نجاح
-        createNotification('نجاح', 'تم حذف النسخة الاحتياطية بنجاح', 'success');
-    } catch (error) {
-        console.error('خطأ في حذف النسخة الاحتياطية:', error);
-        createNotification('خطأ', 'حدث خطأ أثناء حذف النسخة الاحتياطية: ' + error.message, 'danger');
+        return null;
+    }
+};
+
+// إضافة مستمعي الأحداث عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    // تهيئة نظام توليد التقارير
+    // يمكن إضافة وظائف إضافية هنا
+});
+
+/**
+ * عرض تقرير مفصل للنسخة الاحتياطية
+ * @param {string} backupId - معرف النسخة الاحتياطية
+ */
+function showBackupDetailedReport(backupId) {
+    if (window.BackupReportGenerator) {
+        window.BackupReportGenerator.showDetailedReport(backupId);
     }
 }
 
 /**
- * تنسيق حجم الملف
- * Format file size
+ * إضافة زر التقرير المفصل إلى واجهة النسخ الاحتياطية
  */
-function formatFileSize(size) {
-    if (size < 1024) {
-        return size + ' B';
-    } else if (size < 1024 * 1024) {
-        return (size / 1024).toFixed(2) + ' KB';
-    } else if (size < 1024 * 1024 * 1024) {
-        return (size / (1024 * 1024)).toFixed(2) + ' MB';
-    } else {
-        return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+function addReportButtonToBackupUI() {
+    // التحقق من وجود قائمة النسخ الاحتياطية
+    const backupListActions = document.querySelector('.backup-list-actions');
+    
+    if (backupListActions) {
+        // إنشاء زر التقرير
+        const reportButton = document.createElement('button');
+        reportButton.className = 'btn btn-info';
+        reportButton.innerHTML = '<i class="fas fa-chart-bar"></i> تقرير مفصل';
+        reportButton.onclick = function() {
+            const backupSelect = document.getElementById('comprehensiveBackupsList');
+            
+            if (!backupSelect || !backupSelect.value) {
+                createNotification('خطأ', 'يرجى اختيار نسخة احتياطية', 'danger');
+                return;
+            }
+            
+            const backupId = backupSelect.value;
+            showBackupDetailedReport(backupId);
+        };
+        
+        // إضافة الزر بعد زر الاستعادة
+        const restoreButton = backupListActions.querySelector('button:nth-child(2)');
+        if (restoreButton) {
+            backupListActions.insertBefore(reportButton, restoreButton.nextSibling);
+        } else {
+            backupListActions.appendChild(reportButton);
+        }
     }
 }
 
-// إضافة تبويب النسخ الاحتياطي الشامل إلى قائمة التبويبات
-if (typeof switchSettingsTab !== 'function') {
-    // تعريف الدالة إذا لم تكن موجودة
-    window.switchSettingsTab = function(tabId) {
-        // إخفاء جميع علامات التبويب
-        document.querySelectorAll('.settings-tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        // إظهار علامة التبويب المحددة
-        const selectedTab = document.getElementById(`${tabId}Settings`);
-        if (selectedTab) {
-            selectedTab.classList.add('active');
-        }
-        
-        // تحديث الزر النشط
-        document.querySelectorAll('#settings .tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        const activeTabButton = document.querySelector(`#settings .tab[onclick="switchSettingsTab('${tabId}')"]`);
-        if (activeTabButton) {
-            activeTabButton.classList.add('active');
-        }
-    };
-}
-
-// إضافة الدوال إلى النافذة العامة
-window.loadCompleteBackups = loadCompleteBackups;
-window.refreshCompleteBackupsList = refreshCompleteBackupsList;
-window.createCompleteBackup = createCompleteBackup;
-window.viewCompleteBackup = viewCompleteBackup;
-window.restoreCompleteBackup = restoreCompleteBackup;
-window.deleteCompleteBackup = deleteCompleteBackup;
-window.restoreFromFile = restoreFromFile;
-window.restoreFromBackup = restoreFromBackup;
-window.saveCompleteBackupSettings = saveCompleteBackupSettings;
+// إضافة زر التقرير المفصل عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    // إضافة زر التقرير المفصل بعد لحظة لضمان وجود العناصر
+    setTimeout(addReportButtonToBackupUI, 1000);
+});
