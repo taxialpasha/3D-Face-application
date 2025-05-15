@@ -1429,7 +1429,6 @@
                     <div class="tab" onclick="switchSettingsTab('investment')">الاستثمار</div>
                     <div class="tab" onclick="switchSettingsTab('profile')">الملف الشخصي</div>
                     <div class="tab" onclick="switchSettingsTab('notifications')">الإشعارات</div>
-                    <div class="tab" onclick="switchSettingsTab('backup')">النسخ الاحتياطي</div>
                     <div class="tab" onclick="switchSettingsTab('system')">النظام</div>
                     <div class="tab" onclick="switchSettingsTab('sync')">المزامنة والنسخ الاحتياطي</div>
                 </div>
@@ -1702,68 +1701,7 @@
                     </div>
                 </div>
 
-                <div id="backupSettings" class="settings-tab-content">
-                    <div class="form-container">
-                        <div class="form-header">
-                            <h2 class="form-title">النسخ الاحتياطي واستعادة البيانات</h2>
-                            <p class="form-subtitle">إدارة البيانات والنسخ الاحتياطي</p>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">إنشاء نسخة احتياطية</label>
-                                <button class="btn btn-primary" onclick="createBackup()">
-                                    <i class="fas fa-download"></i> إنشاء نسخة احتياطية
-                                </button>
-                                <p class="form-text">قم بإنشاء نسخة احتياطية كاملة من جميع بيانات النظام.</p>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">استعادة من نسخة احتياطية</label>
-                                <input type="file" class="form-control" id="restoreFile" accept=".json">
-                                <button class="btn btn-warning" onclick="restoreBackup()" style="margin-top: 10px;">
-                                    <i class="fas fa-upload"></i> استعادة
-                                </button>
-                                <p class="form-text">تحذير: سيتم استبدال جميع البيانات الحالية بالبيانات من النسخة
-                                    الاحتياطية.</p>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">النسخ الاحتياطية السابقة</label>
-                                <select class="form-select" id="previousBackups" size="5" style="height: auto;">
-                                    <!-- Will be populated by JavaScript -->
-                                </select>
-                                <div style="margin-top: 10px;">
-                                    <button class="btn btn-light btn-sm" onclick="downloadSelectedBackup()">
-                                        <i class="fas fa-download"></i> تنزيل
-                                    </button>
-                                    <button class="btn btn-light btn-sm" onclick="restoreSelectedBackup()">
-                                        <i class="fas fa-upload"></i> استعادة
-                                    </button>
-                                    <button class="btn btn-danger btn-sm" onclick="deleteSelectedBackup()">
-                                        <i class="fas fa-trash"></i> حذف
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">تصدير البيانات</label>
-                            <div class="form-row">
-                                <button class="btn btn-light" onclick="exportInvestors()">
-                                    <i class="fas fa-file-export"></i> المستثمرين
-                                </button>
-                                <button class="btn btn-light" onclick="exportInvestments()">
-                                    <i class="fas fa-file-export"></i> الاستثمارات
-                                </button>
-                                <button class="btn btn-light" onclick="exportOperations()">
-                                    <i class="fas fa-file-export"></i> العمليات
-                                </button>
-                                <button class="btn btn-light" onclick="exportReports()">
-                                    <i class="fas fa-file-export"></i> التقارير
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            
 
                 <div id="systemSettings" class="settings-tab-content">
                     <!-- System Settings Content -->
@@ -2595,7 +2533,7 @@
     </div>
     <script src="chart-utils.js"></script>
     <script src="app.js"></script>
-    <script src="backup-restore-enhanced.js"></script>
+   
 
     <script src="settings-fix.js"></script>
     <script src="firebase-integration.js"></script>
@@ -2637,12 +2575,8 @@
 <script src="notification-search-fixed.js"></script>
 
 
-
-
-
 <link rel="stylesheet" href="comprehensive-backup-styles.css">
 <script src="comprehensive-backup.js"></script>
-
 <script src="backup-reports.js"></script>
 
 
